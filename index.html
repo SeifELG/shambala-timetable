@@ -6,14 +6,15 @@
   <title>Shambala 2026 timetable</title>
   <style>
     :root {
-      --paper: #f3ead6;
+      --paper: #f5eddd;
       --ink: #1b1713;
       --muted: #6b6257;
       --yellow: #f0b429;
       --olive: #314a34;
       --card: #fffaf1;
       --line: #e2d6bf;
-      --shadow: 0 18px 40px rgba(40, 28, 12, 0.16);
+      --shadow-sm: 0 4px 14px rgba(40, 28, 12, 0.07);
+      --shadow: 0 24px 60px rgba(28, 22, 15, 0.22);
     }
 
     * { box-sizing: border-box; }
@@ -21,41 +22,59 @@
     body {
       font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
       background:
-        radial-gradient(circle at top left, rgba(240, 180, 41, 0.18), transparent 32%),
+        radial-gradient(circle at top left, rgba(240, 180, 41, 0.2), transparent 30rem),
         var(--paper);
       color: var(--ink);
     }
 
-    .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 80px; }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 24px 20px 80px; }
 
     header.hero {
       display: flex;
-      gap: 18px;
+      gap: 20px;
       align-items: center;
-      margin-bottom: 18px;
+      margin-bottom: 20px;
+      padding: 20px 22px;
+      border-radius: 20px;
+      background: var(--olive);
+      color: #fffaf1;
+      box-shadow: var(--shadow-sm);
     }
     header.hero img.logo {
-      height: 42px;
+      height: 58px;
       width: auto;
+      max-width: min(42vw, 220px);
       display: block;
+      object-fit: contain;
     }
     header.hero h1 {
-      font-size: 1.55rem;
+      font-size: clamp(1.35rem, 3vw, 1.75rem);
       letter-spacing: 0.02em;
       margin: 0;
     }
     header.hero p {
       margin: 4px 0 0;
-      color: var(--muted);
+      color: rgba(255, 250, 241, 0.72);
       font-size: 0.95rem;
     }
 
-    .controls { display: grid; gap: 10px; margin-bottom: 16px; }
+    .controls {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 250, 241, 0.72);
+      box-shadow: var(--shadow-sm);
+      backdrop-filter: blur(8px);
+    }
     .days {
       display: flex;
       gap: 8px;
       overflow-x: auto;
-      padding-bottom: 2px;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
     }
     .days button, .chip, .icon-btn {
       font: inherit;
@@ -63,11 +82,17 @@
       background: var(--card);
       color: var(--ink);
       cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+    .days button:hover, .chip:hover, .icon-btn:hover { border-color: #b9a98c; }
+    button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+      outline: 3px solid rgba(240, 180, 41, 0.55);
+      outline-offset: 2px;
     }
     .days button {
       white-space: nowrap;
       border-radius: 999px;
-      padding: 8px 14px;
+      padding: 9px 15px;
     }
     .days button .sub {
       display: block;
@@ -92,7 +117,8 @@
       border: 1px solid var(--line);
       background: var(--card);
       border-radius: 12px;
-      padding: 9px 12px;
+      min-height: 44px;
+      padding: 10px 13px;
       color: var(--ink);
     }
     .tools input { flex: 1; min-width: 180px; }
@@ -104,7 +130,7 @@
     }
     .chip.active { background: var(--yellow); border-color: #d49a12; }
 
-    .status { color: var(--muted); margin: 8px 0 14px; font-size: 0.92rem; }
+    .status { color: var(--muted); margin: 10px 2px 14px; font-size: 0.92rem; }
     .error {
       background: #fff1e8;
       border: 1px solid #e8b89a;
@@ -116,24 +142,26 @@
     .venue {
       background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 16px;
-      margin-bottom: 12px;
+      border-radius: 18px;
+      margin-bottom: 14px;
       overflow: hidden;
+      box-shadow: var(--shadow-sm);
     }
     .venue h2 {
       margin: 0;
-      padding: 12px 14px;
-      font-size: 1.05rem;
-      background: rgba(49, 74, 52, 0.08);
+      padding: 13px 16px;
+      font-size: 1.08rem;
+      background: rgba(49, 74, 52, 0.09);
       border-bottom: 1px solid var(--line);
     }
     .row {
       display: grid;
       grid-template-columns: 92px 64px 1fr;
       gap: 12px;
+      align-items: center;
       width: 100%;
       text-align: left;
-      padding: 10px 14px;
+      padding: 11px 16px;
       border: 0;
       border-top: 1px solid var(--line);
       background: transparent;
@@ -142,7 +170,7 @@
       cursor: pointer;
     }
     .row:first-of-type { border-top: 0; }
-    .row:hover { background: rgba(240, 180, 41, 0.12); }
+    .row:hover { background: rgba(240, 180, 41, 0.11); }
     .row .when { font-variant-numeric: tabular-nums; font-size: 0.88rem; color: var(--olive); }
     .row img {
       width: 64px;
@@ -157,7 +185,9 @@
     .drawer-bg {
       position: fixed;
       inset: 0;
-      background: rgba(27, 23, 19, 0.45);
+      z-index: 4;
+      background: rgba(27, 23, 19, 0.58);
+      backdrop-filter: blur(2px);
       display: none;
     }
     .drawer-bg.open { display: block; }
@@ -173,18 +203,22 @@
       transition: transform 0.22s ease;
       overflow: auto;
       z-index: 5;
+      overscroll-behavior: contain;
     }
     .drawer.open { transform: none; }
     .drawer img.hero {
+      display: block;
       width: 100%;
-      height: 230px;
-      object-fit: cover;
-      background: #ddd3bf;
+      height: auto;
+      max-height: min(58vh, 520px);
+      object-fit: contain;
+      background:
+        linear-gradient(135deg, rgba(49, 74, 52, 0.96), rgba(27, 23, 19, 0.96));
     }
-    .drawer .body { padding: 18px 18px 40px; }
-    .drawer h2 { margin: 0 0 8px; font-size: 1.45rem; }
-    .drawer .when { color: var(--olive); margin-bottom: 10px; }
-    .drawer .desc { white-space: pre-wrap; line-height: 1.45; }
+    .drawer .body { padding: 22px 22px 48px; }
+    .drawer h2 { margin: 0 0 8px; font-size: 1.55rem; line-height: 1.15; }
+    .drawer .when { color: var(--olive); margin-bottom: 12px; line-height: 1.45; }
+    .drawer .desc { white-space: pre-wrap; line-height: 1.58; }
     .warn {
       display: inline-block;
       margin: 0 6px 8px 0;
@@ -210,15 +244,25 @@
       position: absolute;
       top: 10px;
       right: 10px;
+      z-index: 1;
       width: 36px;
       height: 36px;
       border-radius: 50%;
       background: var(--card);
+      box-shadow: 0 2px 10px rgba(27, 23, 19, 0.2);
     }
     a { color: var(--olive); }
     @media (max-width: 640px) {
+      .wrap { padding: 12px 10px 60px; }
+      header.hero { gap: 14px; padding: 16px; border-radius: 16px; }
+      header.hero img.logo { height: 44px; max-width: 38vw; }
+      header.hero p { font-size: 0.85rem; }
+      .controls { padding: 12px; border-radius: 16px; }
+      .tools { align-items: stretch; }
+      .tools input, .tools select { width: 100%; }
       .row { grid-template-columns: 78px 52px 1fr; gap: 8px; padding: 10px; }
       .row img { width: 52px; height: 52px; }
+      .drawer .body { padding: 18px 16px 40px; }
     }
   </style>
 </head>
