@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shambala 2026 timetable</title>
+  <style>
+    :root {
+      --paper: #f3ead6;
+      --ink: #1b1713;
+      --muted: #6b6257;
+      --yellow: #f0b429;
+      --olive: #314a34;
+      --card: #fffaf1;
+      --line: #e2d6bf;
+      --shadow: 0 18px 40px rgba(40, 28, 12, 0.16);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+      background:
+        radial-gradient(circle at top left, rgba(240, 180, 41, 0.18), transparent 32%),
+        var(--paper);
+      color: var(--ink);
+    }
+
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 80px; }
+
+    header.hero {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    header.hero img.logo {
+      height: 42px;
+      width: auto;
+      display: block;
+    }
+    header.hero h1 {
+      font-size: 1.55rem;
+      letter-spacing: 0.02em;
+      margin: 0;
+    }
+    header.hero p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .controls { display: grid; gap: 10px; margin-bottom: 16px; }
+    .days {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .days button, .chip, .icon-btn {
+      font: inherit;
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--ink);
+      cursor: pointer;
+    }
+    .days button {
+      white-space: nowrap;
+      border-radius: 999px;
+      padding: 8px 14px;
+    }
+    .days button .sub {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .days button.active {
+      background: var(--olive);
+      border-color: var(--olive);
+      color: #fff;
+    }
+    .days button.active .sub { color: rgba(255,255,255,0.78); }
+
+    .tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .tools input, .tools select {
+      font: inherit;
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 12px;
+      padding: 9px 12px;
+      color: var(--ink);
+    }
+    .tools input { flex: 1; min-width: 180px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 0.86rem;
+    }
+    .chip.active { background: var(--yellow); border-color: #d49a12; }
+
+    .status { color: var(--muted); margin: 8px 0 14px; font-size: 0.92rem; }
+    .error {
+      background: #fff1e8;
+      border: 1px solid #e8b89a;
+      padding: 14px 16px;
+      border-radius: 14px;
+    }
+    .error code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.86em; }
+
+    .venue {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .venue h2 {
+      margin: 0;
+      padding: 12px 14px;
+      font-size: 1.05rem;
+      background: rgba(49, 74, 52, 0.08);
+      border-bottom: 1px solid var(--line);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 92px 64px 1fr;
+      gap: 12px;
+      width: 100%;
+      text-align: left;
+      padding: 10px 14px;
+      border: 0;
+      border-top: 1px solid var(--line);
+      background: transparent;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+    .row:first-of-type { border-top: 0; }
+    .row:hover { background: rgba(240, 180, 41, 0.12); }
+    .row .when { font-variant-numeric: tabular-nums; font-size: 0.88rem; color: var(--olive); }
+    .row img {
+      width: 64px;
+      height: 64px;
+      object-fit: cover;
+      border-radius: 10px;
+      background: #ddd3bf;
+    }
+    .row .name { font-weight: 700; }
+    .row .meta { color: var(--muted); font-size: 0.86rem; margin-top: 3px; }
+
+    .drawer-bg {
+      position: fixed;
+      inset: 0;
+      background: rgba(27, 23, 19, 0.45);
+      display: none;
+    }
+    .drawer-bg.open { display: block; }
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100%;
+      width: min(460px, 100%);
+      background: var(--card);
+      box-shadow: var(--shadow);
+      transform: translateX(110%);
+      transition: transform 0.22s ease;
+      overflow: auto;
+      z-index: 5;
+    }
+    .drawer.open { transform: none; }
+    .drawer img.hero {
+      width: 100%;
+      height: 230px;
+      object-fit: cover;
+      background: #ddd3bf;
+    }
+    .drawer .body { padding: 18px 18px 40px; }
+    .drawer h2 { margin: 0 0 8px; font-size: 1.45rem; }
+    .drawer .when { color: var(--olive); margin-bottom: 10px; }
+    .drawer .desc { white-space: pre-wrap; line-height: 1.45; }
+    .warn {
+      display: inline-block;
+      margin: 0 6px 8px 0;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #f7d7c8;
+      font-size: 0.78rem;
+    }
+    .also { margin-top: 18px; }
+    .also button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin-top: 6px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      font: inherit;
+      cursor: pointer;
+    }
+    .close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--card);
+    }
+    a { color: var(--olive); }
+    @media (max-width: 640px) {
+      .row { grid-template-columns: 78px 52px 1fr; gap: 8px; padding: 10px; }
+      .row img { width: 52px; height: 52px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <img class="logo" id="logo" alt="Shambala" hidden>
+      <div>
+        <h1 id="title">Shambala timetable</h1>
+        <p id="subtitle">Loading merged festival data…</p>
+      </div>
+    </header>
+
+    <div class="controls" id="controls" hidden>
+      <div class="days" id="days"></div>
+      <div class="tools">
+        <input id="search" type="search" placeholder="Search acts, venues, categories…">
+        <select id="venue"></select>
+      </div>
+      <div class="chips" id="cats"></div>
+    </div>
+
+    <div class="status" id="status"></div>
+    <div id="list"></div>
+  </div>
+
+  <div class="drawer-bg" id="drawerBg"></div>
+  <aside class="drawer" id="drawer"></aside>
+
+  <script>
+    const DATA_URL = "data/merged.json";
+    const IMAGE_DIR = "images-data";
+
+    const state = {
+      data: null,
+      day: null,
+      query: "",
+      category: "",
+      venue: "",
+      selected: null,
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function imgPath(name, fallback) {
+      const file = name || fallback || "";
+      return file ? `${IMAGE_DIR}/${file}` : "";
+    }
+
+    function fmtDay(iso, tz) {
+      const date = new Date(iso);
+      const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: tz }).format(date);
+      const short = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: tz }).format(date);
+      return { weekday, short };
+    }
+
+    function fmtTime(iso, tz) {
+      return new Intl.DateTimeFormat("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: tz,
+      }).format(new Date(iso));
+    }
+
+    function fmtRange(start, end, tz) {
+      return `${fmtTime(start, tz)} – ${fmtTime(end, tz)}`;
+    }
+
+    function dayKeys(data) {
+      const tz = data.config?.app?.tz || "Europe/London";
+      const fromConfig = data.config?.app?.timeMarkers || [];
+      const fromSessions = data.entitySessions.map((s) => s.timeMarker).filter(Boolean);
+      return [...new Set([...fromConfig, ...fromSessions])].sort();
+    }
+
+    function buildIndexes(data) {
+      const entities = Object.fromEntries(data.entities.map((e) => [e.id, e]));
+      const pois = Object.fromEntries(data.poi.map((p) => [p.id, p]));
+      const categories = Object.fromEntries(data.categories.map((c) => [c.id, c]));
+      const subcategories = Object.fromEntries(data.subcategories.map((c) => [c.id, c]));
+      return { entities, pois, categories, subcategories };
+    }
+
+    function eventRecord(session, indexes) {
+      const entity = indexes.entities[session.entityId];
+      const venue = indexes.pois[session.location];
+      const cats = (session.category || []).map((id) => indexes.categories[id]).filter(Boolean);
+      const subs = (session.subcategory || []).map((id) => indexes.subcategories[id]).filter(Boolean);
+      return { session, entity, venue, cats, subs };
+    }
+
+    function matches(ev, state) {
+      if (ev.session.timeMarker !== state.day) return false;
+      if (state.venue && ev.venue?.id !== state.venue) return false;
+      if (state.category && !(ev.session.category || []).includes(state.category)) return false;
+      if (!state.query) return true;
+      const q = state.query.toLowerCase();
+      const hay = [
+        ev.entity?.name,
+        ev.venue?.name,
+        ev.entity?.description,
+        ...ev.cats.map((c) => c.name),
+        ...ev.subs.map((c) => c.name),
+      ].join(" ").toLowerCase();
+      return hay.includes(q);
+    }
+
+    function render() {
+      const data = state.data;
+      const app = data.config?.app || {};
+      const tz = app.tz || "Europe/London";
+      const indexes = buildIndexes(data);
+      const fallback = app.images?.defaultImage;
+      const events = data.entitySessions
+        .map((s) => eventRecord(s, indexes))
+        .filter((ev) => ev.entity && ev.venue);
+
+      const days = dayKeys(data);
+      $("days").innerHTML = days.map((key) => {
+        const label = fmtDay(key, tz);
+        const count = events.filter((ev) => ev.session.timeMarker === key).length;
+        return `<button data-day="${key}" class="${key === state.day ? "active" : ""}">
+          ${label.weekday}<span class="sub">${label.short} · ${count}</span>
+        </button>`;
+      }).join("");
+
+      const entityCats = data.categories
+        .filter((c) => c.belongsTo === "entity")
+        .sort((a, b) => b.tier - a.tier);
+      $("cats").innerHTML = `<button class="chip ${state.category === "" ? "active" : ""}" data-cat="">All</button>` +
+        entityCats.map((c) =>
+          `<button class="chip ${state.category === c.id ? "active" : ""}" data-cat="${c.id}">${c.name}</button>`
+        ).join("");
+
+      const venues = [...new Map(events.map((ev) => [ev.venue.id, ev.venue])).values()]
+        .sort((a, b) => a.name.localeCompare(b.name));
+      $("venue").innerHTML = `<option value="">All venues</option>` +
+        venues.map((v) => `<option value="${v.id}" ${v.id === state.venue ? "selected" : ""}>${v.name}</option>`).join("");
+
+      const shown = events
+        .filter((ev) => matches(ev, state))
+        .sort((a, b) => a.session.start.localeCompare(b.session.start) || a.venue.name.localeCompare(b.venue.name));
+
+      const groups = new Map();
+      for (const ev of shown) {
+        if (!groups.has(ev.venue.id)) groups.set(ev.venue.id, { venue: ev.venue, items: [] });
+        groups.get(ev.venue.id).items.push(ev);
+      }
+
+      $("status").textContent = `${shown.length} set${shown.length === 1 ? "" : "s"} · days start at ${app.dayStartHour ?? 5}:00 ${tz.replace("_", " ")}`;
+      $("list").innerHTML = [...groups.values()].map((group) => `
+        <section class="venue">
+          <h2>${group.venue.name}</h2>
+          ${group.items.map((ev) => `
+            <button class="row" data-id="${ev.session.id}">
+              <div class="when">${fmtRange(ev.session.start, ev.session.end, tz)}</div>
+              <img src="${imgPath(ev.entity.image, fallback)}" alt="">
+              <div>
+                <div class="name">${ev.entity.name}</div>
+                <div class="meta">${ev.cats.map((c) => c.name).join(" · ")}${ev.subs.length ? " · " + ev.subs.map((s) => s.name).join(", ") : ""}</div>
+              </div>
+            </button>
+          `).join("")}
+        </section>
+      `).join("") || `<p class="status">Nothing matches these filters.</p>`;
+
+      openDrawer(events.find((ev) => ev.session.id === state.selected), tz, fallback, events);
+    }
+
+    function openDrawer(ev, tz, fallback, allEvents) {
+      const drawer = $("drawer");
+      const bg = $("drawerBg");
+      if (!ev) {
+        drawer.classList.remove("open");
+        bg.classList.remove("open");
+        return;
+      }
+      const others = allEvents
+        .filter((item) => item.entity.id === ev.entity.id && item.session.id !== ev.session.id)
+        .sort((a, b) => a.session.start.localeCompare(b.session.start));
+      const warnings = [
+        ev.session.epilepsyWarning ? "Epilepsy warning" : "",
+        ev.session.explicitWarning ? "Explicit" : "",
+        ev.session.isSpicy ? "Spicy" : "",
+        ev.session.accessibilityInfo || ev.entity.accessibilityInfo || "",
+      ].filter(Boolean);
+      const links = (ev.entity.externalLinks || []).filter((l) => l?.url);
+
+      drawer.innerHTML = `
+        <button class="close icon-btn" id="closeDrawer" aria-label="Close">×</button>
+        <img class="hero" src="${imgPath(ev.entity.image, fallback)}" alt="">
+        <div class="body">
+          <h2>${ev.entity.name}</h2>
+          <div class="when">${ev.venue.name}<br>${fmtDay(ev.session.timeMarker, tz).weekday} ${fmtRange(ev.session.start, ev.session.end, tz)}</div>
+          ${warnings.map((w) => `<span class="warn">${w}</span>`).join("")}
+          <p class="desc">${ev.session.description || ev.entity.description || ""}</p>
+          ${links.length ? `<p>${links.map((l) => `<a href="${l.url}" target="_blank" rel="noreferrer">${l.text || l.type || l.url}</a>`).join(" · ")}</p>` : ""}
+          ${others.length ? `<div class="also"><strong>Other times</strong>${others.map((item) =>
+            `<button data-id="${item.session.id}">${item.venue.name} · ${fmtDay(item.session.timeMarker, tz).weekday} ${fmtRange(item.session.start, item.session.end, tz)}</button>`
+          ).join("")}</div>` : ""}
+        </div>
+      `;
+      drawer.classList.add("open");
+      bg.classList.add("open");
+    }
+
+    function bind() {
+      $("days").addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-day]");
+        if (!btn) return;
+        state.day = btn.dataset.day;
+        render();
+      });
+      $("cats").addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-cat]");
+        if (!btn) return;
+        state.category = btn.dataset.cat;
+        render();
+      });
+      $("venue").addEventListener("change", (e) => {
+        state.venue = e.target.value;
+        render();
+      });
+      $("search").addEventListener("input", (e) => {
+        state.query = e.target.value.trim();
+        render();
+      });
+      $("list").addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-id]");
+        if (!btn) return;
+        state.selected = btn.dataset.id;
+        render();
+      });
+      $("drawer").addEventListener("click", (e) => {
+        if (e.target.id === "closeDrawer") {
+          state.selected = null;
+          render();
+          return;
+        }
+        const btn = e.target.closest("button[data-id]");
+        if (!btn) return;
+        state.selected = btn.dataset.id;
+        render();
+      });
+      $("drawerBg").addEventListener("click", () => {
+        state.selected = null;
+        render();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          state.selected = null;
+          render();
+        }
+      });
+    }
+
+    async function init() {
+      try {
+        const res = await fetch(DATA_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        state.data = data;
+        const app = data.config?.app || {};
+        $("title").textContent = `${app.name || "Shambala"} timetable`;
+        $("subtitle").textContent = `Local viewer · delta ${data.source?.deltaVersion || "bundled"}`;
+        const logo = imgPath(app.images?.logo);
+        if (logo) {
+          $("logo").src = logo;
+          $("logo").hidden = false;
+        }
+        state.day = dayKeys(data)[0];
+        $("controls").hidden = false;
+        bind();
+        render();
+      } catch (err) {
+        $("subtitle").textContent = "Could not load data/merged.json";
+        $("status").innerHTML = `<div class="error">
+          This page needs to be served over HTTP so it can read the JSON.<br>
+          From the project folder run:<br>
+          <code>python3 -m http.server 8000</code><br>
+          then open <code>http://localhost:8000/timetable.html</code><br>
+          <small>${err.message}</small>
+        </div>`;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
