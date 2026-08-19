@@ -69,6 +69,31 @@
       box-shadow: var(--shadow-sm);
       backdrop-filter: blur(8px);
     }
+    .view-toggle {
+      display: inline-grid;
+      grid-template-columns: 1fr 1fr;
+      justify-self: start;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper);
+    }
+    .view-toggle button {
+      min-height: 38px;
+      padding: 7px 16px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .view-toggle button.active {
+      background: var(--olive);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(40, 28, 12, 0.16);
+    }
     .days {
       display: flex;
       gap: 8px;
@@ -156,21 +181,28 @@
     }
     .row {
       display: grid;
-      grid-template-columns: 92px 64px 1fr;
-      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       width: 100%;
-      text-align: left;
-      padding: 11px 16px;
-      border: 0;
       border-top: 1px solid var(--line);
       background: transparent;
-      font: inherit;
-      color: inherit;
-      cursor: pointer;
     }
     .row:first-of-type { border-top: 0; }
     .row:hover { background: rgba(240, 180, 41, 0.11); }
+    .row-main {
+      display: grid;
+      grid-template-columns: 92px 64px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+      min-width: 0;
+      padding: 11px 12px 11px 16px;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
     .row .when { font-variant-numeric: tabular-nums; font-size: 0.88rem; color: var(--olive); }
     .row img {
       width: 64px;
@@ -181,6 +213,24 @@
     }
     .row .name { font-weight: 700; }
     .row .meta { color: var(--muted); font-size: 0.86rem; margin-top: 3px; }
+    .star {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      margin-right: 12px;
+      padding: 0 0 2px;
+      border: 1px solid transparent;
+      border-radius: 50%;
+      background: transparent;
+      color: #8b806f;
+      font: 1.55rem/1 Georgia, serif;
+      cursor: pointer;
+      transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+    }
+    .star:hover { color: #a87400; background: rgba(240, 180, 41, 0.13); }
+    .star.active { color: #bd8200; }
+    .star:active { transform: scale(0.9); }
 
     .drawer-bg {
       position: fixed;
@@ -216,7 +266,14 @@
         linear-gradient(135deg, rgba(49, 74, 52, 0.96), rgba(27, 23, 19, 0.96));
     }
     .drawer .body { padding: 22px 22px 48px; }
+    .drawer .title-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
     .drawer h2 { margin: 0 0 8px; font-size: 1.55rem; line-height: 1.15; }
+    .drawer .title-row .star { flex: 0 0 auto; margin: -7px -7px 0 0; }
     .drawer .when { color: var(--olive); margin-bottom: 12px; line-height: 1.45; }
     .drawer .desc { white-space: pre-wrap; line-height: 1.58; }
     .warn {
@@ -258,10 +315,12 @@
       header.hero img.logo { height: 44px; max-width: 38vw; }
       header.hero p { font-size: 0.85rem; }
       .controls { padding: 12px; border-radius: 16px; }
+      .view-toggle { width: 100%; }
       .tools { align-items: stretch; }
       .tools input, .tools select { width: 100%; }
-      .row { grid-template-columns: 78px 52px 1fr; gap: 8px; padding: 10px; }
+      .row-main { grid-template-columns: 78px 52px minmax(0, 1fr); gap: 8px; padding: 10px 6px 10px 10px; }
       .row img { width: 52px; height: 52px; }
+      .star { width: 40px; height: 40px; margin-right: 6px; }
       .drawer .body { padding: 18px 16px 40px; }
     }
   </style>
@@ -277,6 +336,7 @@
     </header>
 
     <div class="controls" id="controls" hidden>
+      <div class="view-toggle" id="viewToggle" role="group" aria-label="Timetable view"></div>
       <div class="days" id="days"></div>
       <div class="tools">
         <input id="search" type="search" placeholder="Search acts, venues, categories…">
@@ -295,14 +355,17 @@
   <script>
     const DATA_URL = "data/merged.json";
     const IMAGE_DIR = "images-data";
+    const PLAN_STORAGE_KEY = "shambala-2026:festival-plan";
 
     const state = {
       data: null,
       day: null,
+      view: "all",
       query: "",
       category: "",
       venue: "",
       selected: null,
+      favorites: new Set(),
     };
 
     const $ = (id) => document.getElementById(id);
@@ -310,6 +373,44 @@
     function imgPath(name, fallback) {
       const file = name || fallback || "";
       return file ? `${IMAGE_DIR}/${file}` : "";
+    }
+
+    function loadFavorites() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(PLAN_STORAGE_KEY));
+        return new Set(Array.isArray(saved?.sessionIds) ? saved.sessionIds : []);
+      } catch {
+        return new Set();
+      }
+    }
+
+    function saveFavorites() {
+      try {
+        localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify({
+          version: 1,
+          sessionIds: [...state.favorites],
+        }));
+      } catch {
+        // The timetable still works if storage is unavailable.
+      }
+    }
+
+    function toggleFavorite(id) {
+      if (state.favorites.has(id)) {
+        state.favorites.delete(id);
+      } else {
+        state.favorites.add(id);
+      }
+      saveFavorites();
+      render();
+    }
+
+    function starButton(ev, extraClass = "") {
+      const active = state.favorites.has(ev.session.id);
+      const action = active ? "Remove" : "Add";
+      return `<button class="star ${active ? "active" : ""} ${extraClass}" data-favorite="${ev.session.id}"
+        aria-pressed="${active}" aria-label="${action} ${ev.entity.name} ${active ? "from" : "to"} My Festival"
+        title="${action} ${active ? "from" : "to"} My Festival">${active ? "★" : "☆"}</button>`;
     }
 
     function fmtDay(iso, tz) {
@@ -357,6 +458,7 @@
 
     function matches(ev, state) {
       if (ev.session.timeMarker !== state.day) return false;
+      if (state.view === "planned" && !state.favorites.has(ev.session.id)) return false;
       if (state.venue && ev.venue?.id !== state.venue) return false;
       if (state.category && !(ev.session.category || []).includes(state.category)) return false;
       if (!state.query) return true;
@@ -381,10 +483,19 @@
         .map((s) => eventRecord(s, indexes))
         .filter((ev) => ev.entity && ev.venue);
 
+      $("viewToggle").innerHTML = `
+        <button data-view="all" class="${state.view === "all" ? "active" : ""}" aria-pressed="${state.view === "all"}">Everything</button>
+        <button data-view="planned" class="${state.view === "planned" ? "active" : ""}" aria-pressed="${state.view === "planned"}">
+          My Festival (${state.favorites.size})
+        </button>
+      `;
+
       const days = dayKeys(data);
       $("days").innerHTML = days.map((key) => {
         const label = fmtDay(key, tz);
-        const count = events.filter((ev) => ev.session.timeMarker === key).length;
+        const count = events.filter((ev) =>
+          ev.session.timeMarker === key && (state.view === "all" || state.favorites.has(ev.session.id))
+        ).length;
         return `<button data-day="${key}" class="${key === state.day ? "active" : ""}">
           ${label.weekday}<span class="sub">${label.short} · ${count}</span>
         </button>`;
@@ -418,17 +529,26 @@
         <section class="venue">
           <h2>${group.venue.name}</h2>
           ${group.items.map((ev) => `
-            <button class="row" data-id="${ev.session.id}">
-              <div class="when">${fmtRange(ev.session.start, ev.session.end, tz)}</div>
-              <img src="${imgPath(ev.entity.image, fallback)}" alt="">
-              <div>
-                <div class="name">${ev.entity.name}</div>
-                <div class="meta">${ev.cats.map((c) => c.name).join(" · ")}${ev.subs.length ? " · " + ev.subs.map((s) => s.name).join(", ") : ""}</div>
-              </div>
-            </button>
+            <div class="row">
+              <button class="row-main" data-id="${ev.session.id}" aria-label="View ${ev.entity.name}">
+                <div class="when">${fmtRange(ev.session.start, ev.session.end, tz)}</div>
+                <img src="${imgPath(ev.entity.image, fallback)}" alt="">
+                <div>
+                  <div class="name">${ev.entity.name}</div>
+                  <div class="meta">${ev.cats.map((c) => c.name).join(" · ")}${ev.subs.length ? " · " + ev.subs.map((s) => s.name).join(", ") : ""}</div>
+                </div>
+              </button>
+              ${starButton(ev)}
+            </div>
           `).join("")}
         </section>
-      `).join("") || `<p class="status">Nothing matches these filters.</p>`;
+      `).join("") || `<p class="status">${
+        state.view === "planned" && state.favorites.size === 0
+          ? "Your festival is empty. Switch to Everything and star some sets to start planning."
+          : state.view === "planned"
+            ? "Nothing in your festival matches this day and these filters."
+            : "Nothing matches these filters."
+      }</p>`;
 
       openDrawer(events.find((ev) => ev.session.id === state.selected), tz, fallback, events);
     }
@@ -456,7 +576,10 @@
         <button class="close icon-btn" id="closeDrawer" aria-label="Close">×</button>
         <img class="hero" src="${imgPath(ev.entity.image, fallback)}" alt="">
         <div class="body">
-          <h2>${ev.entity.name}</h2>
+          <div class="title-row">
+            <h2>${ev.entity.name}</h2>
+            ${starButton(ev)}
+          </div>
           <div class="when">${ev.venue.name}<br>${fmtDay(ev.session.timeMarker, tz).weekday} ${fmtRange(ev.session.start, ev.session.end, tz)}</div>
           ${warnings.map((w) => `<span class="warn">${w}</span>`).join("")}
           <p class="desc">${ev.session.description || ev.entity.description || ""}</p>
@@ -471,6 +594,12 @@
     }
 
     function bind() {
+      $("viewToggle").addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-view]");
+        if (!btn) return;
+        state.view = btn.dataset.view;
+        render();
+      });
       $("days").addEventListener("click", (e) => {
         const btn = e.target.closest("button[data-day]");
         if (!btn) return;
@@ -492,12 +621,22 @@
         render();
       });
       $("list").addEventListener("click", (e) => {
+        const favorite = e.target.closest("button[data-favorite]");
+        if (favorite) {
+          toggleFavorite(favorite.dataset.favorite);
+          return;
+        }
         const btn = e.target.closest("button[data-id]");
         if (!btn) return;
         state.selected = btn.dataset.id;
         render();
       });
       $("drawer").addEventListener("click", (e) => {
+        const favorite = e.target.closest("button[data-favorite]");
+        if (favorite) {
+          toggleFavorite(favorite.dataset.favorite);
+          return;
+        }
         if (e.target.id === "closeDrawer") {
           state.selected = null;
           render();
@@ -526,6 +665,10 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         state.data = data;
+        state.favorites = loadFavorites();
+        const validSessionIds = new Set(data.entitySessions.map((session) => session.id));
+        state.favorites = new Set([...state.favorites].filter((id) => validSessionIds.has(id)));
+        saveFavorites();
         const app = data.config?.app || {};
         $("title").textContent = `${app.name || "Shambala"} timetable`;
         $("subtitle").textContent = `Local viewer · delta ${data.source?.deltaVersion || "bundled"}`;
