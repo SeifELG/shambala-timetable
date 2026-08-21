@@ -186,6 +186,33 @@
       white-space: nowrap;
       backdrop-filter: blur(6px);
     }
+    .map-label-controls {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 3;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-width: calc(100% - 24px);
+    }
+    .map-label-controls button {
+      min-height: 34px;
+      padding: 6px 10px;
+      border: 1px solid rgba(49, 74, 52, 0.2);
+      border-radius: 999px;
+      background: rgba(255, 250, 241, 0.9);
+      color: var(--olive);
+      box-shadow: var(--shadow-sm);
+      font: 700 0.8rem/1 Georgia, serif;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+    }
+    .map-label-controls button.active {
+      border-color: #bd8200;
+      background: var(--yellow);
+      color: var(--ink);
+    }
     .maplibregl-popup-content {
       max-width: 260px;
       padding: 12px 14px;
@@ -237,6 +264,7 @@
       border-radius: 12px;
     }
     .map-marker .marker-label {
+      display: none;
       position: absolute;
       left: calc(100% + 5px);
       top: 50%;
@@ -253,6 +281,10 @@
       white-space: nowrap;
       pointer-events: none;
       backdrop-filter: blur(4px);
+    }
+    .map-panel.show-stage-labels .map-marker.stage .marker-label,
+    .map-panel.show-activity-labels .map-marker.activity-space .marker-label {
+      display: block;
     }
     .error {
       background: #fff1e8;
@@ -418,6 +450,7 @@
       .tools { align-items: stretch; }
       .tools input, .tools select { width: 100%; }
       .map-panel { min-height: 520px; height: 72vh; border-radius: 16px; }
+      .map-label-controls { top: 54px; }
       .row-main { grid-template-columns: 78px 52px minmax(0, 1fr); gap: 8px; padding: 10px 6px 10px 10px; }
       .row img { width: 52px; height: 52px; }
       .star { width: 40px; height: 40px; margin-right: 6px; }
@@ -447,6 +480,10 @@
 
     <div class="map-panel" id="mapView" hidden>
       <p class="map-count" id="mapCount"></p>
+      <div class="map-label-controls" id="mapLabelControls" aria-label="Map labels">
+        <button type="button" data-map-label="stages" aria-pressed="false">Stage names</button>
+        <button type="button" data-map-label="activities" aria-pressed="false">Activity names</button>
+      </div>
       <div id="map" aria-label="Festival map"></div>
     </div>
     <div class="status" id="status"></div>
@@ -462,6 +499,7 @@
     const DATA_URL = "data/merged.json";
     const IMAGE_DIR = "images-data";
     const PLAN_STORAGE_KEY = "shambala-2026:festival-plan";
+    const MAP_PREFS_STORAGE_KEY = "shambala-2026:map-preferences";
 
     const state = {
       data: null,
@@ -472,6 +510,7 @@
       venue: "",
       selected: null,
       favorites: new Set(),
+      mapLabels: { stages: false, activities: false },
     };
 
     const $ = (id) => document.getElementById(id);
@@ -499,6 +538,36 @@
         }));
       } catch {
         // The timetable still works if storage is unavailable.
+      }
+    }
+
+    function loadMapPreferences() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(MAP_PREFS_STORAGE_KEY));
+        return {
+          stages: saved?.stages === true,
+          activities: saved?.activities === true,
+        };
+      } catch {
+        return { stages: false, activities: false };
+      }
+    }
+
+    function updateMapLabelControls() {
+      $("mapView").classList.toggle("show-stage-labels", state.mapLabels.stages);
+      $("mapView").classList.toggle("show-activity-labels", state.mapLabels.activities);
+      for (const button of $("mapLabelControls").querySelectorAll("button[data-map-label]")) {
+        const active = state.mapLabels[button.dataset.mapLabel];
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      }
+    }
+
+    function saveMapPreferences() {
+      try {
+        localStorage.setItem(MAP_PREFS_STORAGE_KEY, JSON.stringify(state.mapLabels));
+      } catch {
+        // Map label toggles still work for the current page.
       }
     }
 
@@ -623,14 +692,15 @@
         const category = categories[poi.category];
         const type = category?.type || poi.type || "location";
         const icon = category?.icon || type;
+        const labelType = type === "stage" ? "stage" : type === "activity-spaces" ? "activity-space" : "";
         const marker = document.createElement("button");
         marker.type = "button";
-        marker.className = `map-marker${type === "stage" ? " stage" : ""}`;
+        marker.className = `map-marker${labelType ? ` ${labelType}` : ""}`;
         marker.style.setProperty("--marker-color", markerColor(icon));
         marker.setAttribute("aria-label", `${poi.name}, ${category?.name || "location"}`);
         marker.title = poi.name;
         marker.innerHTML = markerIcon(icon);
-        if (type === "stage") {
+        if (labelType) {
           const label = document.createElement("span");
           label.className = "marker-label";
           label.textContent = poi.name;
@@ -868,6 +938,14 @@
         if (state.view === "map") state.selected = null;
         render();
       });
+      $("mapLabelControls").addEventListener("click", (e) => {
+        const button = e.target.closest("button[data-map-label]");
+        if (!button) return;
+        const label = button.dataset.mapLabel;
+        state.mapLabels[label] = !state.mapLabels[label];
+        updateMapLabelControls();
+        saveMapPreferences();
+      });
       $("days").addEventListener("click", (e) => {
         const btn = e.target.closest("button[data-day]");
         if (!btn) return;
@@ -934,6 +1012,8 @@
         const data = await res.json();
         state.data = data;
         state.favorites = loadFavorites();
+        state.mapLabels = loadMapPreferences();
+        updateMapLabelControls();
         const validSessionIds = new Set(data.entitySessions.map((session) => session.id));
         state.favorites = new Set([...state.favorites].filter((id) => validSessionIds.has(id)));
         saveFavorites();
