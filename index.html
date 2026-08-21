@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shambala 2026 timetable</title>
+  <title>Shambala 2026 festival guide</title>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.5.0/dist/maplibre-gl.css">
   <style>
     :root {
@@ -60,6 +60,31 @@
       font-size: 0.95rem;
     }
 
+    .primary-nav {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 14px;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 250, 241, 0.78);
+      box-shadow: var(--shadow-sm);
+    }
+    .primary-nav button {
+      min-height: 44px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--muted);
+      font: 700 1rem/1 Georgia, serif;
+      cursor: pointer;
+    }
+    .primary-nav button.active {
+      background: var(--olive);
+      color: #fff;
+    }
+
     .controls {
       display: grid;
       gap: 12px;
@@ -73,7 +98,7 @@
     }
     .view-toggle {
       display: inline-grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       justify-self: start;
       padding: 3px;
       border: 1px solid var(--line);
@@ -158,6 +183,116 @@
     .chip.active { background: var(--yellow); border-color: #d49a12; }
 
     .status { color: var(--muted); margin: 10px 2px 14px; font-size: 0.92rem; }
+    .section-head {
+      display: flex;
+      gap: 12px;
+      align-items: end;
+      justify-content: space-between;
+      margin: 4px 2px 14px;
+    }
+    .section-head h2 { margin: 0; font-size: 1.5rem; }
+    .section-head p { margin: 4px 0 0; color: var(--muted); }
+    .subnav {
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      margin-bottom: 14px;
+      padding: 2px 1px 5px;
+      scrollbar-width: thin;
+    }
+    .subnav button, .action-btn, .back-btn {
+      flex: 0 0 auto;
+      min-height: 38px;
+      padding: 7px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--card);
+      color: var(--ink);
+      font: inherit;
+      cursor: pointer;
+    }
+    .subnav button.active {
+      border-color: #d49a12;
+      background: var(--yellow);
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
+      gap: 14px;
+    }
+    .content-card {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+      box-shadow: var(--shadow-sm);
+    }
+    .content-card > button.card-main {
+      display: block;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .content-card img {
+      display: block;
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      background: #ddd3bf;
+    }
+    .content-card .card-body { padding: 13px 14px; }
+    .content-card h3 { margin: 0 0 5px; font-size: 1.08rem; }
+    .eyebrow {
+      margin-bottom: 5px;
+      color: var(--olive);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .content-card .summary {
+      display: -webkit-box;
+      overflow: hidden;
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.4;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+    }
+    .content-card .card-actions {
+      display: flex;
+      gap: 7px;
+      padding: 0 14px 13px;
+    }
+    .content-card .card-actions button { flex: 1; }
+    .article {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: var(--shadow-sm);
+    }
+    .article .back-btn { margin-bottom: 18px; }
+    .article > img {
+      width: calc(100% + 48px);
+      max-height: 430px;
+      margin: -24px -24px 22px;
+      object-fit: cover;
+    }
+    .article h2 { margin: 0 0 6px; font-size: clamp(1.6rem, 4vw, 2.25rem); }
+    .article .article-meta { color: var(--muted); }
+    .article .article-body { margin-top: 22px; line-height: 1.65; }
+    .article .article-body a { overflow-wrap: anywhere; }
+    .article .article-body li { margin-bottom: 7px; }
     .map-panel {
       --marker-scale: 0.3;
       position: relative;
@@ -377,7 +512,7 @@
       top: 0;
       right: 0;
       height: 100%;
-      width: min(460px, 100%);
+      width: min(560px, 100%);
       background: var(--card);
       box-shadow: var(--shadow);
       transform: translateX(110%);
@@ -407,6 +542,51 @@
     .drawer .title-row .star { flex: 0 0 auto; margin: -7px -7px 0 0; }
     .drawer .when { color: var(--olive); margin-bottom: 12px; line-height: 1.45; }
     .drawer .desc { white-space: pre-wrap; line-height: 1.58; }
+    .drawer-section { margin-top: 24px; }
+    .drawer-section > h3 { margin: 0 0 10px; font-size: 1.05rem; }
+    .video {
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      padding-top: 56.25%;
+      border-radius: 12px;
+      background: #1b1713;
+    }
+    .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .link-list { display: flex; flex-wrap: wrap; gap: 7px; }
+    .link-list a, .drawer .action-btn {
+      display: inline-flex;
+      align-items: center;
+      min-height: 38px;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper);
+      text-decoration: none;
+    }
+    blockquote {
+      margin: 10px 0;
+      padding: 12px 14px;
+      border-left: 4px solid var(--yellow);
+      background: var(--paper);
+      line-height: 1.5;
+    }
+    blockquote footer { margin-top: 7px; color: var(--muted); font-size: 0.86rem; }
+    .related-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .related-card {
+      overflow: hidden;
+      min-width: 0;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--paper);
+      color: inherit;
+      font: inherit;
+      text-align: left;
+    }
+    button.related-card { cursor: pointer; }
+    .related-card img { width: 100%; height: 90px; object-fit: cover; background: #ddd3bf; }
+    .related-card span { display: block; padding: 8px 9px; font-weight: 700; }
     .warn {
       display: inline-block;
       margin: 0 6px 8px 0;
@@ -446,6 +626,8 @@
       header.hero img.logo { height: 44px; max-width: 38vw; }
       header.hero p { font-size: 0.85rem; }
       .controls { padding: 12px; border-radius: 16px; }
+      .primary-nav { position: sticky; top: 6px; z-index: 3; }
+      .primary-nav button { min-height: 40px; font-size: 0.9rem; }
       .view-toggle { width: 100%; }
       .view-toggle button { padding-inline: 10px; font-size: 0.9rem; }
       .tools { align-items: stretch; }
@@ -456,6 +638,9 @@
       .row img { width: 52px; height: 52px; }
       .star { width: 40px; height: 40px; margin-right: 6px; }
       .drawer .body { padding: 18px 16px 40px; }
+      .card-grid { grid-template-columns: 1fr; }
+      .article { padding: 18px 16px; }
+      .article > img { width: calc(100% + 32px); margin: -18px -16px 18px; }
     }
   </style>
 </head>
@@ -464,10 +649,12 @@
     <header class="hero">
       <img class="logo" id="logo" alt="Shambala" hidden>
       <div>
-        <h1 id="title">Shambala timetable</h1>
+        <h1 id="title">Shambala festival guide</h1>
         <p id="subtitle">Loading merged festival data…</p>
       </div>
     </header>
+
+    <nav class="primary-nav" id="primaryNav" aria-label="Main sections"></nav>
 
     <div class="controls" id="controls" hidden>
       <div class="view-toggle" id="viewToggle" role="group" aria-label="View"></div>
@@ -487,6 +674,8 @@
       </div>
       <div id="map" aria-label="Festival map"></div>
     </div>
+    <section id="exploreView" hidden></section>
+    <section id="infoView" hidden></section>
     <div class="status" id="status"></div>
     <div id="list"></div>
   </div>
@@ -505,17 +694,23 @@
     const state = {
       data: null,
       day: null,
-      view: "all",
+      tab: "timetable",
+      timetableView: "all",
+      exploreBucket: "stages",
+      infoCategory: "news",
       query: "",
       category: "",
       venue: "",
       selected: null,
+      selectedPoi: null,
+      selectedPost: null,
       favorites: new Set(),
       mapLabels: { stages: false, activities: false },
     };
 
     const $ = (id) => document.getElementById(id);
     let festivalMap = null;
+    const mapMarkers = new Map();
 
     function imgPath(name, fallback) {
       const file = name || fallback || "";
@@ -716,10 +911,11 @@
         content.append(name, categoryName);
         const popup = new maplibregl.Popup({ offset: type === "stage" ? 22 : 16 })
           .setDOMContent(content);
-        new maplibregl.Marker({ element: marker })
+        const mapMarker = new maplibregl.Marker({ element: marker })
           .setLngLat(poi.gps.coordinates)
           .setPopup(popup)
           .addTo(map);
+        mapMarkers.set(poi.id, mapMarker);
       }
     }
 
@@ -792,9 +988,197 @@
       updateMarkerScale();
     }
 
+    function closeDrawer() {
+      state.selected = null;
+      state.selectedPoi = null;
+      $("drawer").classList.remove("open");
+      $("drawerBg").classList.remove("open");
+    }
+
+    function showPoiOnMap(id) {
+      const poi = state.data.poi.find((item) => item.id === id);
+      if (!Array.isArray(poi?.gps?.coordinates)) return;
+      closeDrawer();
+      state.tab = "map";
+      render();
+      requestAnimationFrame(() => {
+        initMap(state.data);
+        festivalMap.flyTo({ center: poi.gps.coordinates, zoom: 16.5 });
+        const marker = mapMarkers.get(id);
+        const popup = marker?.getPopup();
+        if (popup && !popup.isOpen()) marker.togglePopup();
+      });
+    }
+
+    function youtubeId(raw) {
+      let value = String(raw || "").trim().replace(/^=/, "");
+      try {
+        if (value.includes("youtu")) {
+          const url = new URL(value.startsWith("http") ? value : `https://${value}`);
+          value = url.hostname.includes("youtu.be") ? url.pathname.slice(1) : url.searchParams.get("v") || "";
+        }
+      } catch {
+        return "";
+      }
+      value = value.split("&")[0].split("?")[0];
+      return /^[\w-]{11}$/.test(value) ? value : "";
+    }
+
+    function safeExternalUrl(raw) {
+      try {
+        const url = new URL(raw);
+        return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+      } catch {
+        return "";
+      }
+    }
+
+    function sanitizeHtml(html) {
+      const template = document.createElement("template");
+      template.innerHTML = html || "";
+      const allowed = new Set(["P", "A", "STRONG", "EM", "I", "B", "UL", "OL", "LI", "BR"]);
+      for (const element of [...template.content.querySelectorAll("*")]) {
+        if (!allowed.has(element.tagName)) {
+          if (["SCRIPT", "STYLE", "IFRAME", "OBJECT"].includes(element.tagName)) {
+            element.remove();
+          } else {
+            element.replaceWith(...element.childNodes);
+          }
+          continue;
+        }
+        const href = element.tagName === "A" ? safeExternalUrl(element.getAttribute("href")) : "";
+        for (const attribute of [...element.attributes]) element.removeAttribute(attribute.name);
+        if (href) {
+          element.href = href;
+          element.target = "_blank";
+          element.rel = "noreferrer";
+        }
+      }
+      return template.innerHTML;
+    }
+
+    function formatDate(iso) {
+      return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" })
+        .format(new Date(iso));
+    }
+
+    const exploreBuckets = {
+      stages: { label: "Stages", types: ["stage"] },
+      activities: { label: "Activity spaces", types: ["activity-spaces"] },
+      food: { label: "Food & drink", types: ["food-drink"] },
+      bars: { label: "Bars", types: ["pint"] },
+      shops: { label: "Shops", types: ["shop"] },
+      facilities: { label: "Facilities", exclude: ["stage", "activity-spaces", "food-drink", "pint", "shop"] },
+    };
+
+    function renderExplore(indexes, fallback) {
+      const bucket = exploreBuckets[state.exploreBucket];
+      const items = state.data.poi
+        .filter((poi) => {
+          const type = indexes.categories[poi.category]?.type || poi.type;
+          return bucket.types ? bucket.types.includes(type) : !bucket.exclude.includes(type);
+        })
+        .sort((a, b) => (b.tier || 0) - (a.tier || 0) || a.name.localeCompare(b.name));
+
+      $("exploreView").innerHTML = `
+        <div class="section-head">
+          <div><h2>Explore</h2><p>Discover stages, spaces, food and useful facilities.</p></div>
+        </div>
+        <div class="subnav" role="group" aria-label="Explore categories">
+          ${Object.entries(exploreBuckets).map(([key, item]) =>
+            `<button data-explore="${key}" class="${key === state.exploreBucket ? "active" : ""}">${item.label}</button>`
+          ).join("")}
+        </div>
+        <div class="card-grid">
+          ${items.map((poi) => {
+            const category = indexes.categories[poi.category];
+            const image = typeof poi.image === "string" && poi.image ? imgPath(poi.image, fallback) : "";
+            const hasMap = Array.isArray(poi.gps?.coordinates);
+            return `<article class="content-card">
+              <button class="card-main" data-poi="${poi.id}">
+                ${image ? `<img src="${image}" alt="">` : ""}
+                <div class="card-body">
+                  <div class="eyebrow">${category?.name || "Place"}</div>
+                  <h3>${poi.name}</h3>
+                  ${poi.description ? `<p class="summary">${poi.description}</p>` : ""}
+                </div>
+              </button>
+              <div class="card-actions">
+                <button class="action-btn" data-poi="${poi.id}">Details</button>
+                <button class="action-btn" data-show-map="${poi.id}" ${hasMap ? "" : "disabled"}>Show on map</button>
+              </div>
+            </article>`;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    function postCategoryId(name) {
+      return state.data.categories.find((category) =>
+        category.belongsTo === "post" && category.name.toLowerCase() === name.toLowerCase()
+      )?.id;
+    }
+
+    function renderInfo() {
+      const infoTabs = {
+        news: { label: "News", category: postCategoryId("News") },
+        essential: { label: "Essential info", category: postCategoryId("Essential Info") },
+        faq: { label: "FAQ", category: "faq" },
+      };
+      if (state.selectedPost) {
+        const post = state.data.posts.find((item) => item.id === state.selectedPost);
+        if (post) {
+          const image = typeof post.image === "string" && post.image ? imgPath(post.image) : "";
+          const link = safeExternalUrl(post.postLink?.value);
+          $("infoView").innerHTML = `<article class="article">
+            <button class="back-btn" data-back-post>← Back to ${infoTabs[state.infoCategory].label}</button>
+            ${image ? `<img src="${image}" alt="">` : ""}
+            ${post.subtitle ? `<div class="eyebrow">${post.subtitle}</div>` : ""}
+            <h2>${post.title}</h2>
+            <div class="article-meta">${formatDate(post.publishedAt)}</div>
+            <div class="article-body">${sanitizeHtml(post.body)}</div>
+            ${link ? `<p><a class="action-btn" href="${link}" target="_blank" rel="noreferrer">${post.postLink.title || "Read more"}</a></p>` : ""}
+          </article>`;
+          return;
+        }
+      }
+      const tab = infoTabs[state.infoCategory];
+      const posts = state.data.posts
+        .filter((post) => post.category === tab.category)
+        .sort((a, b) => state.infoCategory === "faq"
+          ? a.publishedAt.localeCompare(b.publishedAt)
+          : b.publishedAt.localeCompare(a.publishedAt));
+      $("infoView").innerHTML = `
+        <div class="section-head">
+          <div><h2>Info</h2><p>Festival news, practical information and frequently asked questions.</p></div>
+        </div>
+        <div class="subnav" role="group" aria-label="Information categories">
+          ${Object.entries(infoTabs).map(([key, item]) =>
+            `<button data-info="${key}" class="${key === state.infoCategory ? "active" : ""}">${item.label}</button>`
+          ).join("")}
+        </div>
+        <div class="card-grid">
+          ${posts.map((post) => {
+            const image = typeof post.image === "string" && post.image ? imgPath(post.image) : "";
+            return `<article class="content-card">
+              <button class="card-main" data-post="${post.id}">
+                ${image ? `<img src="${image}" alt="">` : ""}
+                <div class="card-body">
+                  ${post.subtitle ? `<div class="eyebrow">${post.subtitle}</div>` : ""}
+                  <h3>${post.title}</h3>
+                  <div class="article-meta">${formatDate(post.publishedAt)}</div>
+                  ${post.summary ? `<p class="summary">${post.summary}</p>` : ""}
+                </div>
+              </button>
+            </article>`;
+          }).join("")}
+        </div>
+      `;
+    }
+
     function matches(ev, state) {
       if (ev.session.timeMarker !== state.day) return false;
-      if (state.view === "planned" && !state.favorites.has(ev.session.id)) return false;
+      if (state.timetableView === "planned" && !state.favorites.has(ev.session.id)) return false;
       if (state.venue && ev.venue?.id !== state.venue) return false;
       if (state.category && !(ev.session.category || []).includes(state.category)) return false;
       if (!state.query) return true;
@@ -819,24 +1203,40 @@
         .map((s) => eventRecord(s, indexes))
         .filter((ev) => ev.entity && ev.venue);
 
+      const tabs = { timetable: "Timetable", map: "Map", explore: "Explore", info: "Info" };
+      $("primaryNav").innerHTML = Object.entries(tabs).map(([key, label]) =>
+        `<button data-tab="${key}" class="${state.tab === key ? "active" : ""}" aria-current="${state.tab === key ? "page" : "false"}">${label}</button>`
+      ).join("");
       $("viewToggle").innerHTML = `
-        <button data-view="all" class="${state.view === "all" ? "active" : ""}" aria-pressed="${state.view === "all"}">Everything</button>
-        <button data-view="planned" class="${state.view === "planned" ? "active" : ""}" aria-pressed="${state.view === "planned"}">
+        <button data-view="all" class="${state.timetableView === "all" ? "active" : ""}" aria-pressed="${state.timetableView === "all"}">Everything</button>
+        <button data-view="planned" class="${state.timetableView === "planned" ? "active" : ""}" aria-pressed="${state.timetableView === "planned"}">
           My Festival (${state.favorites.size})
         </button>
-        <button data-view="map" class="${state.view === "map" ? "active" : ""}" aria-pressed="${state.view === "map"}">Map</button>
       `;
 
-      const mapMode = state.view === "map";
-      $("days").hidden = mapMode;
-      $("tools").hidden = mapMode;
-      $("cats").hidden = mapMode;
-      $("mapView").hidden = !mapMode;
-      $("status").hidden = mapMode;
-      $("list").hidden = mapMode;
-      if (mapMode) {
-        openDrawer(null, tz, fallback, events);
+      const timetableMode = state.tab === "timetable";
+      $("controls").hidden = !timetableMode;
+      $("mapView").hidden = state.tab !== "map";
+      $("exploreView").hidden = state.tab !== "explore";
+      $("infoView").hidden = state.tab !== "info";
+      $("status").hidden = !timetableMode;
+      $("list").hidden = !timetableMode;
+
+      if (state.tab === "map") {
+        closeDrawer();
         requestAnimationFrame(() => initMap(data));
+        return;
+      }
+      if (state.tab === "explore") {
+        renderExplore(indexes, fallback);
+        const poi = data.poi.find((item) => item.id === state.selectedPoi);
+        if (poi) openPoiDrawer(poi, indexes, fallback);
+        else closeDrawer();
+        return;
+      }
+      if (state.tab === "info") {
+        closeDrawer();
+        renderInfo();
         return;
       }
 
@@ -844,7 +1244,7 @@
       $("days").innerHTML = days.map((key) => {
         const label = fmtDay(key, tz);
         const count = events.filter((ev) =>
-          ev.session.timeMarker === key && (state.view === "all" || state.favorites.has(ev.session.id))
+          ev.session.timeMarker === key && (state.timetableView === "all" || state.favorites.has(ev.session.id))
         ).length;
         return `<button data-day="${key}" class="${key === state.day ? "active" : ""}">
           ${label.weekday}<span class="sub">${label.short} · ${count}</span>
@@ -893,22 +1293,21 @@
           `).join("")}
         </section>
       `).join("") || `<p class="status">${
-        state.view === "planned" && state.favorites.size === 0
+        state.timetableView === "planned" && state.favorites.size === 0
           ? "Your festival is empty. Switch to Everything and star some sets to start planning."
-          : state.view === "planned"
+          : state.timetableView === "planned"
             ? "Nothing in your festival matches this day and these filters."
             : "Nothing matches these filters."
       }</p>`;
 
-      openDrawer(events.find((ev) => ev.session.id === state.selected), tz, fallback, events);
+      openActDrawer(events.find((ev) => ev.session.id === state.selected), tz, fallback, events, indexes);
     }
 
-    function openDrawer(ev, tz, fallback, allEvents) {
+    function openActDrawer(ev, tz, fallback, allEvents, indexes) {
       const drawer = $("drawer");
       const bg = $("drawerBg");
       if (!ev) {
-        drawer.classList.remove("open");
-        bg.classList.remove("open");
+        closeDrawer();
         return;
       }
       const others = allEvents
@@ -920,7 +1319,14 @@
         ev.session.isSpicy ? "Spicy" : "",
         ev.session.accessibilityInfo || ev.entity.accessibilityInfo || "",
       ].filter(Boolean);
-      const links = (ev.entity.externalLinks || []).filter((l) => l?.url);
+      const links = (ev.entity.externalLinks || [])
+        .map((link) => ({ ...link, safeUrl: safeExternalUrl(link?.url) }))
+        .filter((link) => link.safeUrl);
+      const videoId = youtubeId(ev.entity.youtubePreview);
+      const recommendations = (ev.entity.linkedListEntities || [])
+        .map((id) => indexes.entities[id])
+        .filter(Boolean)
+        .slice(0, 8);
 
       drawer.innerHTML = `
         <button class="close icon-btn" id="closeDrawer" aria-label="Close">×</button>
@@ -932,23 +1338,76 @@
           </div>
           <div class="when">${ev.venue.name}<br>${fmtDay(ev.session.timeMarker, tz).weekday} ${fmtRange(ev.session.start, ev.session.end, tz)}</div>
           ${warnings.map((w) => `<span class="warn">${w}</span>`).join("")}
+          ${Array.isArray(ev.venue.gps?.coordinates) ? `<p><button class="action-btn" data-show-map="${ev.venue.id}">Show venue on map</button></p>` : ""}
           <p class="desc">${ev.session.description || ev.entity.description || ""}</p>
-          ${links.length ? `<p>${links.map((l) => `<a href="${l.url}" target="_blank" rel="noreferrer">${l.text || l.type || l.url}</a>`).join(" · ")}</p>` : ""}
+          ${videoId ? `<section class="drawer-section"><h3>Watch</h3><div class="video">
+            <iframe src="https://www.youtube-nocookie.com/embed/${videoId}" title="${ev.entity.name} video" loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          </div></section>` : ""}
+          ${links.length ? `<section class="drawer-section"><h3>Links</h3><div class="link-list">${
+            links.map((link) => `<a href="${link.safeUrl}" target="_blank" rel="noreferrer">${link.text || link.type || "Website"}</a>`).join("")
+          }</div></section>` : ""}
+          ${ev.entity.quotes?.length ? `<section class="drawer-section"><h3>What people say</h3>${
+            ev.entity.quotes.map((quote) => `<blockquote>${quote.description}${quote.credit ? `<footer>— ${quote.credit}</footer>` : ""}</blockquote>`).join("")
+          }</section>` : ""}
           ${others.length ? `<div class="also"><strong>Other times</strong>${others.map((item) =>
             `<button data-id="${item.session.id}">${item.venue.name} · ${fmtDay(item.session.timeMarker, tz).weekday} ${fmtRange(item.session.start, item.session.end, tz)}</button>`
           ).join("")}</div>` : ""}
+          ${recommendations.length ? `<section class="drawer-section"><h3>${ev.entity.linkedListTitle || "You might also like"}</h3>
+            <div class="related-grid">${recommendations.map((entity) => {
+              const relatedEvent = allEvents.find((item) => item.entity.id === entity.id && item.session.timeMarker === state.day)
+                || allEvents.find((item) => item.entity.id === entity.id);
+              const tag = relatedEvent ? "button" : "div";
+              return `<${tag} class="related-card" ${relatedEvent ? `data-id="${relatedEvent.session.id}"` : ""}>
+                <img src="${imgPath(entity.image, fallback)}" alt=""><span>${entity.name}</span>
+              </${tag}>`;
+            }).join("")}</div>
+          </section>` : ""}
         </div>
       `;
       drawer.classList.add("open");
       bg.classList.add("open");
     }
 
+    function openPoiDrawer(poi, indexes, fallback) {
+      const drawer = $("drawer");
+      const category = indexes.categories[poi.category];
+      const image = typeof poi.image === "string" && poi.image ? imgPath(poi.image, fallback) : "";
+      const links = (poi.externalLinks || [])
+        .map((link) => ({ ...link, safeUrl: safeExternalUrl(link?.url) }))
+        .filter((link) => link.safeUrl);
+      drawer.innerHTML = `
+        <button class="close icon-btn" id="closeDrawer" aria-label="Close">×</button>
+        ${image ? `<img class="hero" src="${image}" alt="">` : ""}
+        <div class="body">
+          <div class="eyebrow">${category?.name || "Place"}</div>
+          <h2>${poi.name}</h2>
+          ${Array.isArray(poi.gps?.coordinates) ? `<p><button class="action-btn" data-show-map="${poi.id}">Show on map</button></p>` : ""}
+          ${poi.description ? `<p class="desc">${poi.description}</p>` : ""}
+          ${poi.w3wAddress ? `<p><strong>What3Words</strong><br>///${poi.w3wAddress}</p>` : ""}
+          ${links.length ? `<section class="drawer-section"><h3>Links</h3><div class="link-list">${
+            links.map((link) => `<a href="${link.safeUrl}" target="_blank" rel="noreferrer">${link.text || link.type || "Website"}</a>`).join("")
+          }</div></section>` : ""}
+        </div>
+      `;
+      drawer.classList.add("open");
+      $("drawerBg").classList.add("open");
+    }
+
     function bind() {
+      $("primaryNav").addEventListener("click", (e) => {
+        const button = e.target.closest("button[data-tab]");
+        if (!button) return;
+        state.tab = button.dataset.tab;
+        state.selected = null;
+        state.selectedPoi = null;
+        state.selectedPost = null;
+        render();
+      });
       $("viewToggle").addEventListener("click", (e) => {
         const btn = e.target.closest("button[data-view]");
         if (!btn) return;
-        state.view = btn.dataset.view;
-        if (state.view === "map") state.selected = null;
+        state.timetableView = btn.dataset.view;
         render();
       });
       $("mapLabelControls").addEventListener("click", (e) => {
@@ -979,6 +1438,42 @@
         state.query = e.target.value.trim();
         render();
       });
+      $("exploreView").addEventListener("click", (e) => {
+        const bucket = e.target.closest("button[data-explore]");
+        if (bucket) {
+          state.exploreBucket = bucket.dataset.explore;
+          state.selectedPoi = null;
+          render();
+          return;
+        }
+        const mapButton = e.target.closest("button[data-show-map]");
+        if (mapButton) {
+          showPoiOnMap(mapButton.dataset.showMap);
+          return;
+        }
+        const poiButton = e.target.closest("button[data-poi]");
+        if (!poiButton) return;
+        state.selectedPoi = poiButton.dataset.poi;
+        render();
+      });
+      $("infoView").addEventListener("click", (e) => {
+        const tab = e.target.closest("button[data-info]");
+        if (tab) {
+          state.infoCategory = tab.dataset.info;
+          state.selectedPost = null;
+          render();
+          return;
+        }
+        if (e.target.closest("button[data-back-post]")) {
+          state.selectedPost = null;
+          render();
+          return;
+        }
+        const post = e.target.closest("button[data-post]");
+        if (!post) return;
+        state.selectedPost = post.dataset.post;
+        render();
+      });
       $("list").addEventListener("click", (e) => {
         const favorite = e.target.closest("button[data-favorite]");
         if (favorite) {
@@ -991,14 +1486,18 @@
         render();
       });
       $("drawer").addEventListener("click", (e) => {
+        const mapButton = e.target.closest("button[data-show-map]");
+        if (mapButton) {
+          showPoiOnMap(mapButton.dataset.showMap);
+          return;
+        }
         const favorite = e.target.closest("button[data-favorite]");
         if (favorite) {
           toggleFavorite(favorite.dataset.favorite);
           return;
         }
         if (e.target.id === "closeDrawer") {
-          state.selected = null;
-          render();
+          closeDrawer();
           return;
         }
         const btn = e.target.closest("button[data-id]");
@@ -1007,13 +1506,11 @@
         render();
       });
       $("drawerBg").addEventListener("click", () => {
-        state.selected = null;
-        render();
+        closeDrawer();
       });
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
-          state.selected = null;
-          render();
+          closeDrawer();
         }
       });
     }
@@ -1031,7 +1528,7 @@
         state.favorites = new Set([...state.favorites].filter((id) => validSessionIds.has(id)));
         saveFavorites();
         const app = data.config?.app || {};
-        $("title").textContent = `${app.name || "Shambala"} timetable`;
+        $("title").textContent = `${app.name || "Shambala"} festival guide`;
         $("subtitle").textContent = `Local viewer · delta ${data.source?.deltaVersion || "bundled"}`;
         const logo = imgPath(app.images?.logo);
         if (logo) {
