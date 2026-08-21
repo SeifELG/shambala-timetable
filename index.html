@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Shambala 2026 timetable</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.5.0/dist/maplibre-gl.css">
   <style>
     :root {
       --paper: #f5eddd;
@@ -18,6 +19,7 @@
     }
 
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     html, body { margin: 0; min-height: 100%; }
     body {
       font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
@@ -71,7 +73,7 @@
     }
     .view-toggle {
       display: inline-grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       justify-self: start;
       padding: 3px;
       border: 1px solid var(--line);
@@ -156,6 +158,46 @@
     .chip.active { background: var(--yellow); border-color: #d49a12; }
 
     .status { color: var(--muted); margin: 10px 2px 14px; font-size: 0.92rem; }
+    .map-panel {
+      position: relative;
+      overflow: hidden;
+      min-height: 640px;
+      height: min(76vh, 860px);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #dce5d3;
+      box-shadow: var(--shadow-sm);
+    }
+    #map { width: 100%; height: 100%; }
+    .map-count {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      z-index: 2;
+      transform: translateX(-50%);
+      margin: 0;
+      padding: 7px 12px;
+      border: 1px solid rgba(49, 74, 52, 0.18);
+      border-radius: 999px;
+      background: rgba(255, 250, 241, 0.9);
+      color: var(--olive);
+      box-shadow: var(--shadow-sm);
+      font-size: 0.86rem;
+      white-space: nowrap;
+      backdrop-filter: blur(6px);
+    }
+    .maplibregl-popup-content {
+      max-width: 260px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--card);
+      color: var(--ink);
+      box-shadow: var(--shadow-sm);
+      font-family: inherit;
+    }
+    .maplibregl-popup-content strong { display: block; padding-right: 12px; font-size: 1rem; }
+    .maplibregl-popup-content span { color: var(--muted); font-size: 0.84rem; }
+    .maplibregl-popup-close-button { padding: 3px 7px; font-size: 1.1rem; }
     .error {
       background: #fff1e8;
       border: 1px solid #e8b89a;
@@ -316,8 +358,10 @@
       header.hero p { font-size: 0.85rem; }
       .controls { padding: 12px; border-radius: 16px; }
       .view-toggle { width: 100%; }
+      .view-toggle button { padding-inline: 10px; font-size: 0.9rem; }
       .tools { align-items: stretch; }
       .tools input, .tools select { width: 100%; }
+      .map-panel { min-height: 520px; height: 72vh; border-radius: 16px; }
       .row-main { grid-template-columns: 78px 52px minmax(0, 1fr); gap: 8px; padding: 10px 6px 10px 10px; }
       .row img { width: 52px; height: 52px; }
       .star { width: 40px; height: 40px; margin-right: 6px; }
@@ -336,15 +380,19 @@
     </header>
 
     <div class="controls" id="controls" hidden>
-      <div class="view-toggle" id="viewToggle" role="group" aria-label="Timetable view"></div>
+      <div class="view-toggle" id="viewToggle" role="group" aria-label="View"></div>
       <div class="days" id="days"></div>
-      <div class="tools">
+      <div class="tools" id="tools">
         <input id="search" type="search" placeholder="Search acts, venues, categories…">
         <select id="venue"></select>
       </div>
       <div class="chips" id="cats"></div>
     </div>
 
+    <div class="map-panel" id="mapView" hidden>
+      <p class="map-count" id="mapCount"></p>
+      <div id="map" aria-label="Festival map"></div>
+    </div>
     <div class="status" id="status"></div>
     <div id="list"></div>
   </div>
@@ -352,7 +400,9 @@
   <div class="drawer-bg" id="drawerBg"></div>
   <aside class="drawer" id="drawer"></aside>
 
-  <script>
+  <script type="module">
+    import * as maplibregl from "https://unpkg.com/maplibre-gl@6.5.0/dist/maplibre-gl.mjs";
+
     const DATA_URL = "data/merged.json";
     const IMAGE_DIR = "images-data";
     const PLAN_STORAGE_KEY = "shambala-2026:festival-plan";
@@ -369,6 +419,7 @@
     };
 
     const $ = (id) => document.getElementById(id);
+    let festivalMap = null;
 
     function imgPath(name, fallback) {
       const file = name || fallback || "";
@@ -456,6 +507,107 @@
       return { session, entity, venue, cats, subs };
     }
 
+    function initMap(data) {
+      if (festivalMap) {
+        festivalMap.resize();
+        return;
+      }
+
+      const app = data.config?.app || {};
+      const bounds = app.mapBounds;
+      const mapImage = app.images?.mapImage;
+      if (!bounds || !mapImage) return;
+
+      const categories = Object.fromEntries(data.categories.map((category) => [category.id, category]));
+      const pois = data.poi.filter((poi) =>
+        Array.isArray(poi.gps?.coordinates) && poi.gps.coordinates.length === 2
+      );
+      const geojson = {
+        type: "FeatureCollection",
+        features: pois.map((poi) => ({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: poi.gps.coordinates },
+          properties: {
+            id: poi.id,
+            name: poi.name,
+            category: categories[poi.category]?.name || poi.type || "Location",
+          },
+        })),
+      };
+      const corners = [
+        [bounds.northWest.longitude, bounds.northWest.latitude],
+        [bounds.northEast.longitude, bounds.northEast.latitude],
+        [bounds.southEast.longitude, bounds.southEast.latitude],
+        [bounds.southWest.longitude, bounds.southWest.latitude],
+      ];
+
+      festivalMap = new maplibregl.Map({
+        container: "map",
+        style: {
+          version: 8,
+          sources: {
+            "festival-map": {
+              type: "image",
+              url: imgPath(mapImage),
+              coordinates: corners,
+            },
+            pois: { type: "geojson", data: geojson },
+          },
+          layers: [
+            {
+              id: "background",
+              type: "background",
+              paint: { "background-color": "#dce5d3" },
+            },
+            { id: "festival-map", type: "raster", source: "festival-map" },
+            {
+              id: "poi-pins",
+              type: "circle",
+              source: "pois",
+              paint: {
+                "circle-radius": ["interpolate", ["linear"], ["zoom"], 13, 4, 16, 7],
+                "circle-color": "#f0b429",
+                "circle-stroke-color": "#314a34",
+                "circle-stroke-width": 1.5,
+                "circle-opacity": 0.92,
+              },
+            },
+          ],
+        },
+        bounds: [
+          [bounds.southWest.longitude, bounds.southWest.latitude],
+          [bounds.northEast.longitude, bounds.northEast.latitude],
+        ],
+        fitBoundsOptions: { padding: 24 },
+        minZoom: 12,
+        maxZoom: 19,
+        attributionControl: false,
+      });
+
+      festivalMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+      festivalMap.on("click", "poi-pins", (event) => {
+        const feature = event.features?.[0];
+        if (!feature) return;
+        const content = document.createElement("div");
+        const name = document.createElement("strong");
+        const category = document.createElement("span");
+        name.textContent = feature.properties.name;
+        category.textContent = feature.properties.category;
+        content.append(name, category);
+        new maplibregl.Popup({ offset: 10 })
+          .setLngLat(feature.geometry.coordinates)
+          .setDOMContent(content)
+          .addTo(festivalMap);
+      });
+      festivalMap.on("mouseenter", "poi-pins", () => {
+        festivalMap.getCanvas().style.cursor = "pointer";
+      });
+      festivalMap.on("mouseleave", "poi-pins", () => {
+        festivalMap.getCanvas().style.cursor = "";
+      });
+      $("mapCount").textContent = `${pois.length} mapped locations`;
+    }
+
     function matches(ev, state) {
       if (ev.session.timeMarker !== state.day) return false;
       if (state.view === "planned" && !state.favorites.has(ev.session.id)) return false;
@@ -488,7 +640,21 @@
         <button data-view="planned" class="${state.view === "planned" ? "active" : ""}" aria-pressed="${state.view === "planned"}">
           My Festival (${state.favorites.size})
         </button>
+        <button data-view="map" class="${state.view === "map" ? "active" : ""}" aria-pressed="${state.view === "map"}">Map</button>
       `;
+
+      const mapMode = state.view === "map";
+      $("days").hidden = mapMode;
+      $("tools").hidden = mapMode;
+      $("cats").hidden = mapMode;
+      $("mapView").hidden = !mapMode;
+      $("status").hidden = mapMode;
+      $("list").hidden = mapMode;
+      if (mapMode) {
+        openDrawer(null, tz, fallback, events);
+        requestAnimationFrame(() => initMap(data));
+        return;
+      }
 
       const days = dayKeys(data);
       $("days").innerHTML = days.map((key) => {
@@ -598,6 +764,7 @@
         const btn = e.target.closest("button[data-view]");
         if (!btn) return;
         state.view = btn.dataset.view;
+        if (state.view === "map") state.selected = null;
         render();
       });
       $("days").addEventListener("click", (e) => {
