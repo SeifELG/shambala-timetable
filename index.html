@@ -198,6 +198,62 @@
     .maplibregl-popup-content strong { display: block; padding-right: 12px; font-size: 1rem; }
     .maplibregl-popup-content span { color: var(--muted); font-size: 0.84rem; }
     .maplibregl-popup-close-button { padding: 3px 7px; font-size: 1.1rem; }
+    .map-marker {
+      --marker-color: #4f6652;
+      position: absolute;
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      padding: 5px;
+      border: 2px solid #fffaf1;
+      border-radius: 50%;
+      background: var(--marker-color);
+      color: #fff;
+      box-shadow: 0 2px 7px rgba(27, 23, 19, 0.38);
+      cursor: pointer;
+      transition: filter 0.15s ease;
+    }
+    .map-marker:hover, .map-marker:focus-visible {
+      z-index: 5;
+      filter: brightness(1.08);
+    }
+    .map-marker svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .map-marker.stage {
+      z-index: 2;
+      width: 40px;
+      height: 40px;
+      padding: 7px;
+      border-radius: 12px;
+    }
+    .map-marker .marker-label {
+      position: absolute;
+      left: calc(100% + 5px);
+      top: 50%;
+      max-width: 150px;
+      transform: translateY(-50%);
+      padding: 3px 6px;
+      border: 1px solid rgba(86, 43, 113, 0.24);
+      border-radius: 6px;
+      background: rgba(255, 250, 241, 0.9);
+      color: #49235d;
+      box-shadow: 0 1px 4px rgba(27, 23, 19, 0.18);
+      font: 700 0.72rem/1.15 Georgia, serif;
+      text-align: left;
+      white-space: nowrap;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+    }
     .error {
       background: #fff1e8;
       border: 1px solid #e8b89a;
@@ -507,6 +563,95 @@
       return { session, entity, venue, cats, subs };
     }
 
+    function markerIcon(type) {
+      const icons = {
+        stage: `<path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>`,
+        toilets: `<circle cx="8" cy="5" r="2"/><path d="M8 8v6m-3 7 2-7h2l2 7M16 3v18M20 5h.01"/>`,
+        ladyToilets: `<circle cx="12" cy="5" r="2"/><path d="M12 8v5m-4 4 3-7h2l3 7h-8Zm4 0v4"/>`,
+        pint: `<path d="M6 4h11l-1 16H8L6 4Zm11 3h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-3M7 8h9"/>`,
+        waterPoints: `<path d="M12 2s6 7 6 12a6 6 0 0 1-12 0c0-5 6-12 6-12Z"/><path d="M9 15a3 3 0 0 0 3 2"/>`,
+        foodDrink: `<path d="M7 3v7m-3-7v4a3 3 0 0 0 6 0V3M7 10v11M16 3v18m0-18c3 2 4 5 4 8h-4"/>`,
+        firstAid: `<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6V3Z"/>`,
+        entrance: `<path d="M4 21h13V3H4M9 12h12m-4-4 4 4-4 4"/>`,
+        showers: `<path d="M5 10a7 7 0 0 1 14 0M5 10h14M8 14v.01M12 14v.01M16 14v.01M7 18v.01M11 18v.01M15 18v.01M19 18v.01"/>`,
+        accessible: `<circle cx="10" cy="4" r="2"/><path d="M10 7v6h5l3 5m-8-8H6m5 5a5 5 0 1 1-3-5"/>`,
+        information: `<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/>`,
+        reception: `<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/>`,
+        shop: `<path d="M5 8h14l-1 13H6L5 8Zm3 0a4 4 0 0 1 8 0"/>`,
+        activitySpaces: `<path d="m12 2 2.2 6.8H21l-5.5 4 2.1 6.7-5.6-4.1-5.6 4.1 2.1-6.7-5.5-4h6.8L12 2Z"/>`,
+        fireSafety: `<path d="M13 2s1 4-2 7c-2-2-4-1-4-1s-3 4-1 8a7 7 0 0 0 13-3c0-5-6-11-6-11Zm-1 19c-2 0-3-1-3-3 0-1 1-3 3-4 0 2 3 2 3 4s-1 3-3 3Z"/>`,
+        ticket: `<path d="M3 9a3 3 0 0 0 0 6v4h18v-4a3 3 0 0 0 0-6V5H3v4Zm9-2v2m0 3v2m0 3v2"/>`,
+        photo: `<path d="M4 7h4l2-3h4l2 3h4v13H4V7Z"/><circle cx="12" cy="13" r="4"/>`,
+        wasteDisposal: `<path d="M5 7h14m-9-3h4m-7 3 1 14h8l1-14M10 11v6m4-6v6"/>`,
+        washingUp: `<circle cx="12" cy="13" r="7"/><path d="M7 13h10M18 4h.01M21 7h.01"/>`,
+        phoneCharging: `<path d="M8 2h8v20H8V2Zm0 4h8m-5 13h2"/><path d="m12 8-2 4h3l-1 4 3-6h-3V8Z"/>`,
+        accommodation: `<path d="m3 21 9-18 9 18H3Zm9-18v18m-5 0 5-7 5 7"/>`,
+        charity: `<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>`,
+      };
+      return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[type] || `<path d="M12 21s7-6 7-12a7 7 0 0 0-14 0c0 6 7 12 7 12Z"/><circle cx="12" cy="9" r="2"/>`}</svg>`;
+    }
+
+    function markerColor(type) {
+      return {
+        stage: "#713b8c",
+        toilets: "#297c82",
+        ladyToilets: "#9a4f78",
+        pint: "#a65d16",
+        waterPoints: "#2477a8",
+        foodDrink: "#c85d3d",
+        firstAid: "#b83f3f",
+        entrance: "#397544",
+        showers: "#4285a4",
+        accessible: "#286c9f",
+        information: "#5261a5",
+        reception: "#5261a5",
+        shop: "#8a5b35",
+        activitySpaces: "#8b5b9f",
+        fireSafety: "#c64b2f",
+        ticket: "#9a6b18",
+        photo: "#65518f",
+        wasteDisposal: "#56675a",
+        washingUp: "#4b7d71",
+        phoneCharging: "#697331",
+        accommodation: "#567044",
+        charity: "#a34866",
+      }[type] || "#4f6652";
+    }
+
+    function addPoiMarkers(map, pois, categories) {
+      for (const poi of pois) {
+        const category = categories[poi.category];
+        const type = category?.type || poi.type || "location";
+        const icon = category?.icon || type;
+        const marker = document.createElement("button");
+        marker.type = "button";
+        marker.className = `map-marker${type === "stage" ? " stage" : ""}`;
+        marker.style.setProperty("--marker-color", markerColor(icon));
+        marker.setAttribute("aria-label", `${poi.name}, ${category?.name || "location"}`);
+        marker.title = poi.name;
+        marker.innerHTML = markerIcon(icon);
+        if (type === "stage") {
+          const label = document.createElement("span");
+          label.className = "marker-label";
+          label.textContent = poi.name;
+          marker.append(label);
+        }
+
+        const content = document.createElement("div");
+        const name = document.createElement("strong");
+        const categoryName = document.createElement("span");
+        name.textContent = poi.name;
+        categoryName.textContent = category?.name || poi.type || "Location";
+        content.append(name, categoryName);
+        const popup = new maplibregl.Popup({ offset: type === "stage" ? 22 : 16 })
+          .setDOMContent(content);
+        new maplibregl.Marker({ element: marker })
+          .setLngLat(poi.gps.coordinates)
+          .setPopup(popup)
+          .addTo(map);
+      }
+    }
+
     function initMap(data) {
       if (festivalMap) {
         festivalMap.resize();
@@ -522,18 +667,6 @@
       const pois = data.poi.filter((poi) =>
         Array.isArray(poi.gps?.coordinates) && poi.gps.coordinates.length === 2
       );
-      const geojson = {
-        type: "FeatureCollection",
-        features: pois.map((poi) => ({
-          type: "Feature",
-          geometry: { type: "Point", coordinates: poi.gps.coordinates },
-          properties: {
-            id: poi.id,
-            name: poi.name,
-            category: categories[poi.category]?.name || poi.type || "Location",
-          },
-        })),
-      };
       const corners = [
         [bounds.northWest.longitude, bounds.northWest.latitude],
         [bounds.northEast.longitude, bounds.northEast.latitude],
@@ -551,7 +684,6 @@
               url: imgPath(mapImage),
               coordinates: corners,
             },
-            pois: { type: "geojson", data: geojson },
           },
           layers: [
             {
@@ -560,18 +692,6 @@
               paint: { "background-color": "#dce5d3" },
             },
             { id: "festival-map", type: "raster", source: "festival-map" },
-            {
-              id: "poi-pins",
-              type: "circle",
-              source: "pois",
-              paint: {
-                "circle-radius": ["interpolate", ["linear"], ["zoom"], 13, 4, 16, 7],
-                "circle-color": "#f0b429",
-                "circle-stroke-color": "#314a34",
-                "circle-stroke-width": 1.5,
-                "circle-opacity": 0.92,
-              },
-            },
           ],
         },
         bounds: [
@@ -585,26 +705,7 @@
       });
 
       festivalMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
-      festivalMap.on("click", "poi-pins", (event) => {
-        const feature = event.features?.[0];
-        if (!feature) return;
-        const content = document.createElement("div");
-        const name = document.createElement("strong");
-        const category = document.createElement("span");
-        name.textContent = feature.properties.name;
-        category.textContent = feature.properties.category;
-        content.append(name, category);
-        new maplibregl.Popup({ offset: 10 })
-          .setLngLat(feature.geometry.coordinates)
-          .setDOMContent(content)
-          .addTo(festivalMap);
-      });
-      festivalMap.on("mouseenter", "poi-pins", () => {
-        festivalMap.getCanvas().style.cursor = "pointer";
-      });
-      festivalMap.on("mouseleave", "poi-pins", () => {
-        festivalMap.getCanvas().style.cursor = "";
-      });
+      addPoiMarkers(festivalMap, pois, categories);
       $("mapCount").textContent = `${pois.length} mapped locations`;
     }
 
