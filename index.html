@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#314a34">
   <title>Shambala 2026 festival guide</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="vendor/maplibre-gl/maplibre-gl.css">
   <style>
     :root {
@@ -27,6 +30,20 @@
         radial-gradient(circle at top left, rgba(240, 180, 41, 0.2), transparent 30rem),
         var(--paper);
       color: var(--ink);
+    }
+    .offline-status {
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      z-index: 10;
+      margin: 0;
+      padding: 8px 12px;
+      border: 1px solid #c58a18;
+      border-radius: 999px;
+      background: #fff1c9;
+      color: #5c410f;
+      box-shadow: var(--shadow-sm);
+      font-size: 0.86rem;
     }
 
     .wrap { max-width: 1160px; margin: 0 auto; padding: 24px 20px 80px; }
@@ -659,6 +676,7 @@
   </style>
 </head>
 <body>
+  <p class="offline-status" id="offlineStatus" role="status" hidden>Offline · showing downloaded content</p>
   <div class="wrap">
     <header class="hero">
       <img class="logo" id="logo" alt="Shambala" hidden>
@@ -1794,6 +1812,22 @@
           <small>${err.message}</small>
         </div>`;
       }
+    }
+
+    function updateConnectionStatus() {
+      $("offlineStatus").hidden = navigator.onLine;
+    }
+
+    window.addEventListener("online", updateConnectionStatus);
+    window.addEventListener("offline", updateConnectionStatus);
+    updateConnectionStatus();
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+          console.warn("Service worker registration failed", error);
+        });
+      });
     }
 
     init();

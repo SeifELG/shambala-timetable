@@ -14,11 +14,15 @@ Then open <http://localhost:8000>.
 
 Opening `index.html` directly may not work because browsers restrict local JSON requests.
 
+The guide is installable as a PWA. After the first successful visit, its interface, timetable, festival map, and previously viewed images remain available offline. YouTube previews and external links still require a connection.
+
 ## Project structure
 
 - `index.html` — the festival guide interface and application logic
 - `data/merged.json` — merged timetable and configuration data
 - `images-data/` — bundled and delta images referenced by the guide
+- `manifest.webmanifest` and `service-worker.js` — installation and offline caching
+- `icons/` — PWA install icons
 - `vendor/maplibre-gl/` — self-hosted MapLibre map runtime and license
 
 ## Deployment
