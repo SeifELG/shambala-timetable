@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Shambala 2026 festival guide</title>
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.5.0/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="vendor/maplibre-gl/maplibre-gl.css">
   <style>
     :root {
       --paper: #f5eddd;
@@ -698,7 +698,7 @@
   <aside class="drawer" id="drawer"></aside>
 
   <script type="module">
-    import * as maplibregl from "https://unpkg.com/maplibre-gl@6.5.0/dist/maplibre-gl.mjs";
+    import * as maplibregl from "./vendor/maplibre-gl/maplibre-gl.mjs";
 
     const DATA_URL = "data/merged.json";
     const IMAGE_DIR = "images-data";
@@ -718,6 +718,8 @@
       selected: null,
       selectedPoi: null,
       selectedPost: null,
+      selectedMerch: null,
+      selectedPartner: null,
       favorites: new Set(),
       collapsedVenues: new Set(),
       mapLabels: { stages: false, activities: false },
@@ -1007,16 +1009,127 @@
       state.selected = null;
       state.selectedPoi = null;
       state.selectedPost = null;
+      state.selectedMerch = null;
+      state.selectedPartner = null;
       $("drawer").classList.remove("open");
       $("drawerBg").classList.remove("open");
+    }
+
+    function detailHash(kind, id) {
+      return `#${kind}/${encodeURIComponent(id)}`;
+    }
+
+    function exploreBucketForPoi(poi) {
+      const category = state.data.categories.find((item) => item.id === poi.category);
+      const type = category?.type || poi.type;
+      return Object.entries(exploreBuckets).find(([, bucket]) =>
+        bucket.types ? bucket.types.includes(type) : !bucket.exclude.includes(type)
+      )?.[0] || "facilities";
+    }
+
+    function infoCategoryForPost(post) {
+      if (post.category === "faq") return "faq";
+      if (post.category === postCategoryId("Essential Info")) return "essential";
+      return "news";
+    }
+
+    function applyRoute(hash = location.hash) {
+      if (!state.data) return;
+      closeDrawer();
+      const [kind = "timetable", encodedId = ""] = hash.replace(/^#/, "").split("/");
+      const id = decodeURIComponent(encodedId);
+
+      if (kind === "act") {
+        const session = state.data.entitySessions.find((item) => item.id === id);
+        if (session) {
+          state.tab = "timetable";
+          state.day = session.timeMarker;
+          state.selected = id;
+        }
+      } else if (kind === "place") {
+        const poi = state.data.poi.find((item) => item.id === id);
+        if (poi) {
+          state.tab = "explore";
+          state.exploreBucket = exploreBucketForPoi(poi);
+          state.selectedPoi = id;
+        }
+      } else if (kind === "post") {
+        const post = state.data.posts.find((item) => item.id === id);
+        if (post) {
+          state.tab = "info";
+          state.infoCategory = infoCategoryForPost(post);
+          state.selectedPost = id;
+        }
+      } else if (kind === "merch" && state.data.merchandise.some((item) => item.id === id)) {
+        state.tab = "info";
+        state.infoCategory = "merchandise";
+        state.selectedMerch = id;
+      } else if (kind === "partner" && state.data.partners.some((item) => item.id === id)) {
+        state.tab = "info";
+        state.infoCategory = "partners";
+        state.selectedPartner = id;
+      } else if (["timetable", "map", "explore", "info"].includes(kind)) {
+        state.tab = kind;
+      } else {
+        state.tab = "timetable";
+      }
+      render();
+    }
+
+    function navigateTab(tab) {
+      history.pushState({ tab }, "", `#${tab}`);
+      applyRoute();
+    }
+
+    function navigateToDetail(kind, id) {
+      history.pushState({ detailEntry: true }, "", detailHash(kind, id));
+      applyRoute();
+    }
+
+    function dismissDrawer() {
+      if (history.state?.detailEntry) {
+        history.back();
+      } else {
+        history.replaceState({ tab: state.tab }, "", `#${state.tab}`);
+        applyRoute();
+      }
+    }
+
+    async function shareCurrentDetail(button) {
+      const url = location.href;
+      const title = decodeURIComponent(button.dataset.shareTitle || "") || document.title;
+      try {
+        if (navigator.share) {
+          await navigator.share({ title, url });
+        } else if (navigator.clipboard) {
+          await navigator.clipboard.writeText(url);
+          button.textContent = "Link copied";
+          setTimeout(() => { button.textContent = "Share"; }, 1600);
+        } else {
+          const input = document.createElement("textarea");
+          input.value = url;
+          document.body.append(input);
+          input.select();
+          document.execCommand("copy");
+          input.remove();
+          button.textContent = "Link copied";
+          setTimeout(() => { button.textContent = "Share"; }, 1600);
+        }
+      } catch (error) {
+        if (error?.name !== "AbortError") button.textContent = "Could not share";
+      }
+    }
+
+    function shareButton(title) {
+      return `<button class="action-btn" data-share-title="${encodeURIComponent(title)}">Share</button>`;
     }
 
     function showPoiOnMap(id) {
       const poi = state.data.poi.find((item) => item.id === id);
       if (!Array.isArray(poi?.gps?.coordinates)) return;
       closeDrawer();
-      state.tab = "map";
-      render();
+      history.pushState({ tab: "map" }, "", "#map");
+      applyRoute();
       requestAnimationFrame(() => {
         initMap(state.data);
         festivalMap.flyTo({ center: poi.gps.coordinates, zoom: 16.5 });
@@ -1140,24 +1253,52 @@
         news: { label: "News", category: postCategoryId("News") },
         essential: { label: "Essential info", category: postCategoryId("Essential Info") },
         faq: { label: "FAQ", category: "faq" },
+        merchandise: { label: "Merchandise" },
+        partners: { label: "Partners" },
       };
       const tab = infoTabs[state.infoCategory];
-      const posts = state.data.posts
-        .filter((post) => post.category === tab.category)
-        .sort((a, b) => state.infoCategory === "faq"
-          ? a.publishedAt.localeCompare(b.publishedAt)
-          : b.publishedAt.localeCompare(a.publishedAt));
-      $("infoView").innerHTML = `
-        <div class="section-head">
-          <div><h2>Info</h2><p>Festival news, practical information and frequently asked questions.</p></div>
-        </div>
-        <div class="subnav" role="group" aria-label="Information categories">
-          ${Object.entries(infoTabs).map(([key, item]) =>
-            `<button data-info="${key}" class="${key === state.infoCategory ? "active" : ""}">${item.label}</button>`
-          ).join("")}
-        </div>
-        <div class="card-grid">
-          ${posts.map((post) => {
+      let cards = "";
+      if (state.infoCategory === "merchandise") {
+        cards = state.data.merchandise
+          .slice()
+          .sort((a, b) => (b.tier || 0) - (a.tier || 0) || a.name.localeCompare(b.name))
+          .map((item) => {
+            const image = typeof item.image === "string" && item.image ? imgPath(item.image) : "";
+            return `<article class="content-card">
+              <button class="card-main" data-merch="${item.id}">
+                ${image ? `<img src="${image}" alt="">` : ""}
+                <div class="card-body">
+                  <div class="eyebrow">${item.isFestivalMerch ? "Official merchandise" : "Merchandise"}</div>
+                  <h3>${item.name}</h3>
+                  ${item.subtitle ? `<p class="summary">${item.subtitle}</p>` : ""}
+                </div>
+              </button>
+            </article>`;
+          }).join("");
+      } else if (state.infoCategory === "partners") {
+        cards = state.data.partners
+          .slice()
+          .sort((a, b) => (b.tier || 0) - (a.tier || 0) || a.name.localeCompare(b.name))
+          .map((item) => {
+            const image = typeof item.image === "string" && item.image ? imgPath(item.image) : "";
+            return `<article class="content-card">
+              <button class="card-main" data-partner="${item.id}">
+                ${image ? `<img src="${image}" alt="">` : ""}
+                <div class="card-body">
+                  <div class="eyebrow">${item.cardPillText || "Partner"}</div>
+                  <h3>${item.name}</h3>
+                  ${item.cardDescription || item.description ? `<p class="summary">${item.cardDescription || item.description}</p>` : ""}
+                </div>
+              </button>
+            </article>`;
+          }).join("");
+      } else {
+        cards = state.data.posts
+          .filter((post) => post.category === tab.category)
+          .sort((a, b) => state.infoCategory === "faq"
+            ? a.publishedAt.localeCompare(b.publishedAt)
+            : b.publishedAt.localeCompare(a.publishedAt))
+          .map((post) => {
             const image = typeof post.image === "string" && post.image ? imgPath(post.image) : "";
             return `<article class="content-card">
               <button class="card-main" data-post="${post.id}">
@@ -1170,7 +1311,19 @@
                 </div>
               </button>
             </article>`;
-          }).join("")}
+          }).join("");
+      }
+      $("infoView").innerHTML = `
+        <div class="section-head">
+          <div><h2>Info</h2><p>News, practical information, merchandise and festival partners.</p></div>
+        </div>
+        <div class="subnav" role="group" aria-label="Information categories">
+          ${Object.entries(infoTabs).map(([key, item]) =>
+            `<button data-info="${key}" class="${key === state.infoCategory ? "active" : ""}">${item.label}</button>`
+          ).join("")}
+        </div>
+        <div class="card-grid">
+          ${cards}
         </div>
       `;
     }
@@ -1236,7 +1389,11 @@
       if (state.tab === "info") {
         renderInfo();
         const post = data.posts.find((item) => item.id === state.selectedPost);
+        const merchandise = data.merchandise.find((item) => item.id === state.selectedMerch);
+        const partner = data.partners.find((item) => item.id === state.selectedPartner);
         if (post) openPostDrawer(post);
+        else if (merchandise) openMerchDrawer(merchandise);
+        else if (partner) openPartnerDrawer(partner);
         else closeDrawer();
         return;
       }
@@ -1343,7 +1500,10 @@
           </div>
           <div class="when">${ev.venue.name}<br>${fmtDay(ev.session.timeMarker, tz).weekday} ${fmtRange(ev.session.start, ev.session.end, tz)}</div>
           ${warnings.map((w) => `<span class="warn">${w}</span>`).join("")}
-          ${Array.isArray(ev.venue.gps?.coordinates) ? `<p><button class="action-btn" data-show-map="${ev.venue.id}">Show venue on map</button></p>` : ""}
+          <div class="link-list">
+            ${shareButton(ev.entity.name)}
+            ${Array.isArray(ev.venue.gps?.coordinates) ? `<button class="action-btn" data-show-map="${ev.venue.id}">Show venue on map</button>` : ""}
+          </div>
           <p class="desc">${ev.session.description || ev.entity.description || ""}</p>
           ${videoId ? `<section class="drawer-section"><h3>Watch</h3><div class="video">
             <iframe src="https://www.youtube-nocookie.com/embed/${videoId}" title="${ev.entity.name} video" loading="lazy"
@@ -1387,7 +1547,10 @@
         <div class="body">
           <div class="eyebrow">${category?.name || "Place"}</div>
           <h2>${poi.name}</h2>
-          ${Array.isArray(poi.gps?.coordinates) ? `<p><button class="action-btn" data-show-map="${poi.id}">Show on map</button></p>` : ""}
+          <div class="link-list">
+            ${shareButton(poi.name)}
+            ${Array.isArray(poi.gps?.coordinates) ? `<button class="action-btn" data-show-map="${poi.id}">Show on map</button>` : ""}
+          </div>
           ${poi.description ? `<p class="desc">${poi.description}</p>` : ""}
           ${poi.w3wAddress ? `<p><strong>What3Words</strong><br>///${poi.w3wAddress}</p>` : ""}
           ${links.length ? `<section class="drawer-section"><h3>Links</h3><div class="link-list">${
@@ -1410,8 +1573,53 @@
           ${post.subtitle ? `<div class="eyebrow">${post.subtitle}</div>` : ""}
           <h2>${post.title}</h2>
           <div class="article-meta">${formatDate(post.publishedAt)}</div>
+          <p>${shareButton(post.title)}</p>
           <div class="article-body">${sanitizeHtml(post.body)}</div>
           ${link ? `<p><a class="action-btn" href="${link}" target="_blank" rel="noreferrer">${post.postLink.title || "Read more"}</a></p>` : ""}
+        </div>
+      `;
+      drawer.classList.add("open");
+      $("drawerBg").classList.add("open");
+    }
+
+    function openMerchDrawer(item) {
+      const drawer = $("drawer");
+      const image = typeof item.image === "string" && item.image ? imgPath(item.image) : "";
+      const url = safeExternalUrl(item.url);
+      drawer.innerHTML = `
+        <button class="close icon-btn" id="closeDrawer" aria-label="Close">×</button>
+        ${image ? `<img class="hero" src="${image}" alt="">` : ""}
+        <div class="body">
+          <div class="eyebrow">${item.isFestivalMerch ? "Official merchandise" : "Merchandise"}</div>
+          <h2>${item.name}</h2>
+          ${item.subtitle ? `<p class="desc">${item.subtitle}</p>` : ""}
+          <div class="link-list">
+            ${shareButton(item.name)}
+            ${url ? `<a href="${url}" target="_blank" rel="noreferrer">View in shop</a>` : ""}
+          </div>
+        </div>
+      `;
+      drawer.classList.add("open");
+      $("drawerBg").classList.add("open");
+    }
+
+    function openPartnerDrawer(item) {
+      const drawer = $("drawer");
+      const image = typeof item.image === "string" && item.image ? imgPath(item.image) : "";
+      const links = (item.externalLinks || [])
+        .map((link) => ({ ...link, safeUrl: safeExternalUrl(link?.url) }))
+        .filter((link) => link.safeUrl);
+      drawer.innerHTML = `
+        <button class="close icon-btn" id="closeDrawer" aria-label="Close">×</button>
+        ${image ? `<img class="hero" src="${image}" alt="">` : ""}
+        <div class="body">
+          <div class="eyebrow">${item.cardPillText || "Partner"}</div>
+          <h2>${item.name}</h2>
+          ${item.description ? `<p class="desc">${item.description}</p>` : ""}
+          <div class="link-list">
+            ${shareButton(item.name)}
+            ${links.map((link) => `<a href="${link.safeUrl}" target="_blank" rel="noreferrer">${link.text || link.type || "Website"}</a>`).join("")}
+          </div>
         </div>
       `;
       drawer.classList.add("open");
@@ -1422,11 +1630,7 @@
       $("primaryNav").addEventListener("click", (e) => {
         const button = e.target.closest("button[data-tab]");
         if (!button) return;
-        state.tab = button.dataset.tab;
-        state.selected = null;
-        state.selectedPoi = null;
-        state.selectedPost = null;
-        render();
+        navigateTab(button.dataset.tab);
       });
       $("viewToggle").addEventListener("click", (e) => {
         const btn = e.target.closest("button[data-view]");
@@ -1466,8 +1670,8 @@
         const bucket = e.target.closest("button[data-explore]");
         if (bucket) {
           state.exploreBucket = bucket.dataset.explore;
-          state.selectedPoi = null;
-          render();
+          history.pushState({ tab: "explore" }, "", "#explore");
+          applyRoute();
           return;
         }
         const mapButton = e.target.closest("button[data-show-map]");
@@ -1477,21 +1681,28 @@
         }
         const poiButton = e.target.closest("button[data-poi]");
         if (!poiButton) return;
-        state.selectedPoi = poiButton.dataset.poi;
-        render();
+        navigateToDetail("place", poiButton.dataset.poi);
       });
       $("infoView").addEventListener("click", (e) => {
         const tab = e.target.closest("button[data-info]");
         if (tab) {
           state.infoCategory = tab.dataset.info;
-          state.selectedPost = null;
-          render();
+          history.pushState({ tab: "info" }, "", "#info");
+          applyRoute();
           return;
         }
         const post = e.target.closest("button[data-post]");
-        if (!post) return;
-        state.selectedPost = post.dataset.post;
-        render();
+        if (post) {
+          navigateToDetail("post", post.dataset.post);
+          return;
+        }
+        const merch = e.target.closest("button[data-merch]");
+        if (merch) {
+          navigateToDetail("merch", merch.dataset.merch);
+          return;
+        }
+        const partner = e.target.closest("button[data-partner]");
+        if (partner) navigateToDetail("partner", partner.dataset.partner);
       });
       $("list").addEventListener("click", (e) => {
         const venueTitle = e.target.closest("button[data-collapse-venue]");
@@ -1509,10 +1720,14 @@
         }
         const btn = e.target.closest("button[data-id]");
         if (!btn) return;
-        state.selected = btn.dataset.id;
-        render();
+        navigateToDetail("act", btn.dataset.id);
       });
       $("drawer").addEventListener("click", (e) => {
+        const share = e.target.closest("button[data-share-title]");
+        if (share) {
+          shareCurrentDetail(share);
+          return;
+        }
         const mapButton = e.target.closest("button[data-show-map]");
         if (mapButton) {
           showPoiOnMap(mapButton.dataset.showMap);
@@ -1524,22 +1739,20 @@
           return;
         }
         if (e.target.id === "closeDrawer") {
-          closeDrawer();
+          dismissDrawer();
           return;
         }
         const btn = e.target.closest("button[data-id]");
         if (!btn) return;
-        state.selected = btn.dataset.id;
-        render();
+        navigateToDetail("act", btn.dataset.id);
       });
       $("drawerBg").addEventListener("click", () => {
-        closeDrawer();
+        dismissDrawer();
       });
       document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
-          closeDrawer();
-        }
+        if (e.key === "Escape" && $("drawer").classList.contains("open")) dismissDrawer();
       });
+      window.addEventListener("popstate", () => applyRoute());
     }
 
     async function init() {
@@ -1565,7 +1778,12 @@
         state.day = dayKeys(data)[0];
         $("controls").hidden = false;
         bind();
-        render();
+        if (!location.hash) {
+          history.replaceState({ tab: "timetable" }, "", "#timetable");
+        } else {
+          history.replaceState({ detailEntry: false }, "", location.href);
+        }
+        applyRoute();
       } catch (err) {
         $("subtitle").textContent = "Could not load data/merged.json";
         $("status").innerHTML = `<div class="error">

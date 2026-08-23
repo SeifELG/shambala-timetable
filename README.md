@@ -1,6 +1,6 @@
-# Shambala 2026 Timetable
+# Shambala 2026 Festival Guide
 
-An unofficial, static timetable viewer for Shambala 2026. It is built from the festival app's bundled timetable data and its latest published delta.
+An unofficial, static festival guide for Shambala 2026. It includes the timetable, personal planning, festival map, places, news, practical information, merchandise, and partners.
 
 ## Run locally
 
@@ -16,9 +16,10 @@ Opening `index.html` directly may not work because browsers restrict local JSON 
 
 ## Project structure
 
-- `index.html` — the timetable interface
+- `index.html` — the festival guide interface and application logic
 - `data/merged.json` — merged timetable and configuration data
-- `images-data/` — bundled and delta images referenced by the timetable
+- `images-data/` — bundled and delta images referenced by the guide
+- `vendor/maplibre-gl/` — self-hosted MapLibre map runtime and license
 
 ## Deployment
 
