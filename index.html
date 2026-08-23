@@ -793,6 +793,7 @@
     };
 
     const $ = (id) => document.getElementById(id);
+    const serviceWorkersAvailable = "serviceWorker" in navigator;
     let festivalMap = null;
     const mapMarkers = new Map();
     let offlineRefreshId = 0;
@@ -1405,6 +1406,9 @@
     }
 
     function workerCommand(type, payload = {}, onProgress) {
+      if (!serviceWorkersAvailable) {
+        return Promise.reject(new Error("Offline mode requires HTTPS and a browser with service-worker support."));
+      }
       return navigator.serviceWorker.ready.then((registration) => {
         const worker = registration.active || navigator.serviceWorker.controller;
         if (!worker) throw new Error("No active service worker");
@@ -1479,6 +1483,20 @@
       settings.message = message || "Checking offline storage…";
       if (state.tab === "settings") renderSettings();
       try {
+        if (!serviceWorkersAvailable) {
+          const [storage, persistent] = await Promise.all([
+            navigator.storage?.estimate?.() || {},
+            navigator.storage?.persisted?.() || false
+          ]);
+          if (refreshId !== offlineRefreshId) return;
+          settings.storage = storage;
+          settings.persistent = persistent;
+          settings.loaded = true;
+          settings.message = window.isSecureContext
+            ? "Service workers are unavailable here. Open the site in Chrome rather than an in-app browser."
+            : "Offline mode requires HTTPS. An HTTP address on your local network cannot use service workers.";
+          return;
+        }
         const registration = await navigator.serviceWorker.getRegistration();
         if (!registration?.active) throw new Error("The service worker is not active yet. Reload once while online.");
         const [workerResult, storage, persistent] = await Promise.all([
@@ -1566,6 +1584,7 @@
       const placesCount = mediaUrlsFor("places").length;
       const infoCount = mediaUrlsFor("info").length;
       const allCount = mediaUrlsFor("all").length;
+      const offlineAvailable = serviceWorkersAvailable;
       $("settingsView").innerHTML = `
         <div class="section-head">
           <div><h2>Settings</h2><p>Inspect, repair and expand what is available offline.</p></div>
@@ -1575,10 +1594,10 @@
         <div class="settings-grid">
           <section class="setting-card">
             <h3>Offline core</h3>
-            <div class="metric">${status ? `${status.coreCached}/${status.coreExpected} files` : "Checking…"}</div>
+            <div class="metric">${!offlineAvailable ? "Unavailable" : status ? `${status.coreCached}/${status.coreExpected} files` : "Checking…"}</div>
             <p>App interface, timetable data, festival map and map renderer. Cache ${status?.cacheVersion || "—"} · data ${state.data.source?.deltaVersion || "bundled"}.</p>
             <div class="setting-actions">
-              <button class="action-btn" data-offline-action="repair" ${settings.loading || !navigator.onLine ? "disabled" : ""}>Repair core files</button>
+              <button class="action-btn" data-offline-action="repair" ${settings.loading || !navigator.onLine || !offlineAvailable ? "disabled" : ""}>Repair core files</button>
             </div>
           </section>
           <section class="setting-card">
@@ -1586,11 +1605,11 @@
             <div class="metric">${status?.media.entries || 0} images · ${formatBytes(status?.media.bytes || 0)}</div>
             <p>Images are also saved automatically as you view them.</p>
             <div class="setting-actions">
-              <button class="action-btn" data-offline-action="download-festival" ${settings.loading || !festivalCount ? "disabled" : ""}>My Festival (${festivalCount})</button>
-              <button class="action-btn" data-offline-action="download-places" ${settings.loading ? "disabled" : ""}>Map & places (${placesCount})</button>
-              <button class="action-btn" data-offline-action="download-info" ${settings.loading ? "disabled" : ""}>Info (${infoCount})</button>
-              <button class="action-btn" data-offline-action="download-all" ${settings.loading ? "disabled" : ""}>All media (${allCount})</button>
-              <button class="action-btn danger" data-offline-action="clear-media" ${settings.loading ? "disabled" : ""}>Clear media</button>
+              <button class="action-btn" data-offline-action="download-festival" ${settings.loading || !festivalCount || !offlineAvailable ? "disabled" : ""}>My Festival (${festivalCount})</button>
+              <button class="action-btn" data-offline-action="download-places" ${settings.loading || !offlineAvailable ? "disabled" : ""}>Map & places (${placesCount})</button>
+              <button class="action-btn" data-offline-action="download-info" ${settings.loading || !offlineAvailable ? "disabled" : ""}>Info (${infoCount})</button>
+              <button class="action-btn" data-offline-action="download-all" ${settings.loading || !offlineAvailable ? "disabled" : ""}>All media (${allCount})</button>
+              <button class="action-btn danger" data-offline-action="clear-media" ${settings.loading || !offlineAvailable ? "disabled" : ""}>Clear media</button>
             </div>
           </section>
           <section class="setting-card">
@@ -1603,8 +1622,8 @@
           </section>
           <section class="setting-card">
             <h3>Service worker</h3>
-            <div class="metric">${status?.controlled ? "Active" : "Not controlling this page"}</div>
-            <p>${navigator.onLine ? "Online" : "Offline"} · ${status?.coreCache || "No cache detected"}</p>
+            <div class="metric">${!offlineAvailable ? "Unavailable" : status?.controlled ? "Active" : "Not controlling this page"}</div>
+            <p>${navigator.onLine ? "Online" : "Offline"} · ${window.isSecureContext ? "Secure connection" : "Insecure connection"} · ${status?.coreCache || "No cache detected"}</p>
           </section>
         </div>
       `;
