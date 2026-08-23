@@ -1,6 +1,6 @@
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const CORE_CACHE = `shambala-core-${CACHE_VERSION}`;
-const MEDIA_CACHE = `shambala-media-${CACHE_VERSION}`;
+const MEDIA_CACHE = "shambala-media";
 const CACHE_PREFIX = "shambala-";
 
 const coreAssets = [
@@ -38,6 +38,125 @@ self.addEventListener("activate", (event) => {
       ))
       .then(() => self.clients.claim())
   );
+});
+
+function scopedUrl(path) {
+  return new URL(path, self.registration.scope).href;
+}
+
+async function cacheSummary(cacheName) {
+  const cache = await caches.open(cacheName);
+  const requests = await cache.keys();
+  let bytes = 0;
+  for (const request of requests) {
+    const response = await cache.match(request);
+    bytes += Number(response?.headers.get("content-length") || 0);
+  }
+  return { entries: requests.length, bytes };
+}
+
+async function getOfflineStatus() {
+  const cache = await caches.open(CORE_CACHE);
+  let coreCached = 0;
+  for (const asset of coreAssets) {
+    if (await cache.match(scopedUrl(asset))) coreCached += 1;
+  }
+  return {
+    cacheVersion: CACHE_VERSION,
+    coreCache: CORE_CACHE,
+    mediaCache: MEDIA_CACHE,
+    coreExpected: coreAssets.length,
+    coreCached,
+    core: await cacheSummary(CORE_CACHE),
+    media: await cacheSummary(MEDIA_CACHE)
+  };
+}
+
+async function repairCore(report) {
+  const cache = await caches.open(CORE_CACHE);
+  const failures = [];
+  let completed = 0;
+  for (const asset of coreAssets) {
+    try {
+      const request = new Request(scopedUrl(asset), { cache: "reload" });
+      const response = await fetch(request);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await cache.put(request, response);
+    } catch {
+      failures.push(asset);
+    }
+    completed += 1;
+    report({ type: "progress", completed, total: coreAssets.length });
+  }
+  if (failures.length) throw new Error(`Could not refresh ${failures.length} core file(s)`);
+  return getOfflineStatus();
+}
+
+async function cacheMedia(urls, report) {
+  const cache = await caches.open(MEDIA_CACHE);
+  const pending = [...new Set(urls)].filter((value) => {
+    const url = new URL(value, self.registration.scope);
+    return url.origin === self.location.origin && url.pathname.includes("/images-data/");
+  });
+  let cursor = 0;
+  let completed = 0;
+  let downloaded = 0;
+  let failed = 0;
+
+  async function worker() {
+    while (cursor < pending.length) {
+      const index = cursor++;
+      const request = new Request(new URL(pending[index], self.registration.scope).href);
+      try {
+        if (!await cache.match(request)) {
+          const response = await fetch(request);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          await cache.put(request, response);
+          downloaded += 1;
+        }
+      } catch {
+        failed += 1;
+      }
+      completed += 1;
+      report({ type: "progress", completed, total: pending.length });
+    }
+  }
+
+  await Promise.all(Array.from({ length: 4 }, () => worker()));
+  return { downloaded, failed, status: await getOfflineStatus() };
+}
+
+self.addEventListener("message", (event) => {
+  const port = event.ports[0];
+  const report = (message) => port?.postMessage(message);
+  const type = event.data?.type;
+
+  if (type === "GET_OFFLINE_STATUS") {
+    event.waitUntil(
+      getOfflineStatus()
+        .then((status) => report({ type: "complete", status }))
+        .catch((error) => report({ type: "error", message: error.message }))
+    );
+  } else if (type === "REPAIR_CORE") {
+    event.waitUntil(
+      repairCore(report)
+        .then((status) => report({ type: "complete", status }))
+        .catch((error) => report({ type: "error", message: error.message }))
+    );
+  } else if (type === "CACHE_MEDIA") {
+    event.waitUntil(
+      cacheMedia(event.data.urls || [], report)
+        .then((result) => report({ type: "complete", result }))
+        .catch((error) => report({ type: "error", message: error.message }))
+    );
+  } else if (type === "CLEAR_MEDIA") {
+    event.waitUntil(
+      caches.delete(MEDIA_CACHE)
+        .then(() => getOfflineStatus())
+        .then((status) => report({ type: "complete", status }))
+        .catch((error) => report({ type: "error", message: error.message }))
+    );
+  }
 });
 
 async function networkFirst(request, cacheName) {

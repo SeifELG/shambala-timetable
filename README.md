@@ -16,6 +16,8 @@ Opening `index.html` directly may not work because browsers restrict local JSON 
 
 The guide is installable as a PWA. After the first successful visit, its interface, timetable, festival map, and previously viewed images remain available offline. YouTube previews and external links still require a connection.
 
+The Settings section reports the active cache and storage state, can repair the core offline package, request persistent storage, and download optional image collections.
+
 ## Project structure
 
 - `index.html` — the festival guide interface and application logic

@@ -79,7 +79,7 @@
 
     .primary-nav {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 6px;
       margin-bottom: 14px;
       padding: 5px;
@@ -310,6 +310,45 @@
     .article .article-body { margin-top: 22px; line-height: 1.65; }
     .article .article-body a { overflow-wrap: anywhere; }
     .article .article-body li { margin-bottom: 7px; }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 14px;
+    }
+    .setting-card {
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+      box-shadow: var(--shadow-sm);
+    }
+    .setting-card h3 { margin: 0 0 7px; }
+    .setting-card p { color: var(--muted); line-height: 1.45; }
+    .setting-card .metric {
+      margin: 8px 0;
+      color: var(--ink);
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    .setting-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+    .setting-actions button { flex: 1 1 auto; }
+    .progress-track {
+      overflow: hidden;
+      height: 9px;
+      margin: 12px 0 7px;
+      border-radius: 999px;
+      background: var(--line);
+    }
+    .progress-track span {
+      display: block;
+      width: var(--progress, 0%);
+      height: 100%;
+      border-radius: inherit;
+      background: var(--yellow);
+      transition: width 0.15s ease;
+    }
+    .settings-message { min-height: 1.3em; color: var(--olive); font-weight: 700; }
+    .danger { color: #8a2f27; }
     .map-panel {
       --marker-scale: 0.3;
       position: relative;
@@ -658,7 +697,7 @@
       header.hero p { font-size: 0.85rem; }
       .controls { padding: 12px; border-radius: 16px; }
       .primary-nav { position: sticky; top: 6px; z-index: 3; }
-      .primary-nav button { min-height: 40px; font-size: 0.9rem; }
+      .primary-nav button { min-height: 40px; padding-inline: 3px; font-size: 0.82rem; }
       .view-toggle { width: 100%; }
       .view-toggle button { padding-inline: 10px; font-size: 0.9rem; }
       .tools { align-items: stretch; }
@@ -708,6 +747,7 @@
     </div>
     <section id="exploreView" hidden></section>
     <section id="infoView" hidden></section>
+    <section id="settingsView" hidden></section>
     <div class="status" id="status"></div>
     <div id="list"></div>
   </div>
@@ -741,11 +781,21 @@
       favorites: new Set(),
       collapsedVenues: new Set(),
       mapLabels: { stages: false, activities: false },
+      offlineSettings: {
+        loading: false,
+        loaded: false,
+        status: null,
+        storage: null,
+        persistent: false,
+        progress: null,
+        message: ""
+      },
     };
 
     const $ = (id) => document.getElementById(id);
     let festivalMap = null;
     const mapMarkers = new Map();
+    let offlineRefreshId = 0;
 
     function imgPath(name, fallback) {
       const file = name || fallback || "";
@@ -808,6 +858,7 @@
       } else {
         state.favorites.add(id);
       }
+      mediaPackageCache.delete("festival");
       saveFavorites();
       render();
     }
@@ -1086,7 +1137,7 @@
         state.tab = "info";
         state.infoCategory = "partners";
         state.selectedPartner = id;
-      } else if (["timetable", "map", "explore", "info"].includes(kind)) {
+      } else if (["timetable", "map", "explore", "info", "settings"].includes(kind)) {
         state.tab = kind;
       } else {
         state.tab = "timetable";
@@ -1346,6 +1397,219 @@
       `;
     }
 
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) return "0 MB";
+      const units = ["B", "KB", "MB", "GB"];
+      const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+      return `${(bytes / 1024 ** index).toFixed(index > 1 ? 1 : 0)} ${units[index]}`;
+    }
+
+    function workerCommand(type, payload = {}, onProgress) {
+      return navigator.serviceWorker.ready.then((registration) => {
+        const worker = registration.active || navigator.serviceWorker.controller;
+        if (!worker) throw new Error("No active service worker");
+        return new Promise((resolve, reject) => {
+          const channel = new MessageChannel();
+          const timeout = setTimeout(() => reject(new Error("The service worker did not respond. Reload once while online.")), 15000);
+          channel.port1.onmessage = (event) => {
+            clearTimeout(timeout);
+            const message = event.data;
+            if (message.type === "progress") {
+              onProgress?.(message);
+            } else if (message.type === "complete") {
+              resolve(message);
+            } else if (message.type === "error") {
+              reject(new Error(message.message));
+            }
+          };
+          worker.postMessage({ type, ...payload }, [channel.port2]);
+        });
+      });
+    }
+
+    const mediaPackageCache = new Map();
+    const coreImageNames = new Set([
+      "957b81be-9dee-42ca-9fb9-a057a90071b1.png",
+      "69726d3a-7238-4ea3-8200-2e7505b3b174.png",
+      "6fb27a6f-cf86-4ee7-acc3-3b8365063ac9.jpg"
+    ]);
+
+    function collectImageNames(value, names) {
+      if (typeof value === "string") {
+        if (!value.includes("://") && /\.(png|jpe?g|webp)$/i.test(value)) names.add(value);
+      } else if (Array.isArray(value)) {
+        for (const item of value) collectImageNames(item, names);
+      } else if (value && typeof value === "object") {
+        for (const item of Object.values(value)) collectImageNames(item, names);
+      }
+    }
+
+    function mediaUrlsFor(packageName) {
+      if (mediaPackageCache.has(packageName)) return mediaPackageCache.get(packageName);
+      const names = new Set();
+      if (packageName === "festival") {
+        const entities = new Map(state.data.entities.map((item) => [item.id, item]));
+        const pois = new Map(state.data.poi.map((item) => [item.id, item]));
+        for (const session of state.data.entitySessions) {
+          if (!state.favorites.has(session.id)) continue;
+          collectImageNames(entities.get(session.entityId)?.image, names);
+          collectImageNames(pois.get(session.location)?.image, names);
+        }
+      } else if (packageName === "places") {
+        collectImageNames(state.data.config?.app?.images?.mapImage, names);
+        collectImageNames(state.data.poi, names);
+      } else if (packageName === "info") {
+        collectImageNames(state.data.posts, names);
+        collectImageNames(state.data.merchandise, names);
+        collectImageNames(state.data.partners, names);
+      } else if (packageName === "all") {
+        collectImageNames(state.data, names);
+      }
+      const urls = [...names]
+        .filter((name) => !coreImageNames.has(name))
+        .map((name) => imgPath(name));
+      mediaPackageCache.set(packageName, urls);
+      return urls;
+    }
+
+    async function refreshOfflineSettings(message = "") {
+      const settings = state.offlineSettings;
+      const refreshId = ++offlineRefreshId;
+      settings.loading = true;
+      settings.message = message || "Checking offline storage…";
+      if (state.tab === "settings") renderSettings();
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (!registration?.active) throw new Error("The service worker is not active yet. Reload once while online.");
+        const [workerResult, storage, persistent] = await Promise.all([
+          workerCommand("GET_OFFLINE_STATUS"),
+          navigator.storage?.estimate?.() || {},
+          navigator.storage?.persisted?.() || false
+        ]);
+        if (refreshId !== offlineRefreshId) return;
+        settings.status = {
+          ...workerResult.status,
+          controlled: Boolean(navigator.serviceWorker.controller)
+        };
+        settings.storage = storage;
+        settings.persistent = persistent;
+        settings.loaded = true;
+        settings.message = message;
+      } catch (error) {
+        if (refreshId !== offlineRefreshId) return;
+        settings.message = error.message;
+      } finally {
+        if (refreshId !== offlineRefreshId) return;
+        settings.loading = false;
+        settings.progress = null;
+        if (state.tab === "settings") renderSettings();
+      }
+    }
+
+    function updateSettingsProgress(progress, label) {
+      state.offlineSettings.progress = progress;
+      state.offlineSettings.message = label;
+      if (state.tab === "settings") renderSettings();
+    }
+
+    async function handleOfflineAction(action) {
+      const settings = state.offlineSettings;
+      if (settings.loading) return;
+      settings.loading = true;
+      settings.message = "";
+      renderSettings();
+      try {
+        if (action === "persist") {
+          const granted = await navigator.storage?.persist?.();
+          settings.message = granted
+            ? "Persistent storage granted."
+            : "The browser did not grant persistent storage.";
+        } else if (action === "repair") {
+          if (!navigator.onLine) throw new Error("Go online before repairing the core files.");
+          await workerCommand("REPAIR_CORE", {}, (progress) => {
+            updateSettingsProgress(progress, `Repairing core files ${progress.completed}/${progress.total}…`);
+          });
+          settings.message = "Core offline files repaired.";
+        } else if (action === "clear-media") {
+          if (!confirm("Remove all optionally downloaded and previously viewed images?")) return;
+          await workerCommand("CLEAR_MEDIA");
+          settings.message = "Downloaded media cleared.";
+        } else if (action.startsWith("download-")) {
+          if (!navigator.onLine) throw new Error("Go online before downloading media.");
+          const packageName = action.replace("download-", "");
+          const urls = mediaUrlsFor(packageName);
+          if (packageName === "all" && !confirm(`Download up to ${urls.length} images? This may use about 94 MB.`)) return;
+          const response = await workerCommand("CACHE_MEDIA", { urls }, (progress) => {
+            updateSettingsProgress(progress, `Downloading images ${progress.completed}/${progress.total}…`);
+          });
+          settings.message = response.result.failed
+            ? `Finished with ${response.result.failed} failed image(s).`
+            : `Offline images ready (${response.result.downloaded} newly downloaded).`;
+        }
+      } catch (error) {
+        settings.message = error.message;
+      } finally {
+        settings.loading = false;
+        settings.progress = null;
+        await refreshOfflineSettings(settings.message);
+      }
+    }
+
+    function renderSettings() {
+      const settings = state.offlineSettings;
+      const status = settings.status;
+      const progress = settings.progress;
+      const progressPercent = progress?.total ? Math.round(progress.completed / progress.total * 100) : 0;
+      const storageUsed = settings.storage?.usage || 0;
+      const storageQuota = settings.storage?.quota || 0;
+      const festivalCount = mediaUrlsFor("festival").length;
+      const placesCount = mediaUrlsFor("places").length;
+      const infoCount = mediaUrlsFor("info").length;
+      const allCount = mediaUrlsFor("all").length;
+      $("settingsView").innerHTML = `
+        <div class="section-head">
+          <div><h2>Settings</h2><p>Inspect, repair and expand what is available offline.</p></div>
+        </div>
+        ${progress ? `<div class="progress-track" aria-label="${progressPercent}% complete"><span style="--progress:${progressPercent}%"></span></div>` : ""}
+        <p class="settings-message">${settings.message || ""}</p>
+        <div class="settings-grid">
+          <section class="setting-card">
+            <h3>Offline core</h3>
+            <div class="metric">${status ? `${status.coreCached}/${status.coreExpected} files` : "Checking…"}</div>
+            <p>App interface, timetable data, festival map and map renderer. Cache ${status?.cacheVersion || "—"} · data ${state.data.source?.deltaVersion || "bundled"}.</p>
+            <div class="setting-actions">
+              <button class="action-btn" data-offline-action="repair" ${settings.loading || !navigator.onLine ? "disabled" : ""}>Repair core files</button>
+            </div>
+          </section>
+          <section class="setting-card">
+            <h3>Downloaded media</h3>
+            <div class="metric">${status?.media.entries || 0} images · ${formatBytes(status?.media.bytes || 0)}</div>
+            <p>Images are also saved automatically as you view them.</p>
+            <div class="setting-actions">
+              <button class="action-btn" data-offline-action="download-festival" ${settings.loading || !festivalCount ? "disabled" : ""}>My Festival (${festivalCount})</button>
+              <button class="action-btn" data-offline-action="download-places" ${settings.loading ? "disabled" : ""}>Map & places (${placesCount})</button>
+              <button class="action-btn" data-offline-action="download-info" ${settings.loading ? "disabled" : ""}>Info (${infoCount})</button>
+              <button class="action-btn" data-offline-action="download-all" ${settings.loading ? "disabled" : ""}>All media (${allCount})</button>
+              <button class="action-btn danger" data-offline-action="clear-media" ${settings.loading ? "disabled" : ""}>Clear media</button>
+            </div>
+          </section>
+          <section class="setting-card">
+            <h3>Browser storage</h3>
+            <div class="metric">${formatBytes(storageUsed)} used</div>
+            <p>${storageQuota ? `${formatBytes(storageQuota)} available to this site. ` : ""}${settings.persistent ? "Persistent storage is enabled." : "Storage may be removed automatically when space is low."}</p>
+            <div class="setting-actions">
+              <button class="action-btn" data-offline-action="persist" ${settings.loading || settings.persistent ? "disabled" : ""}>Request persistent storage</button>
+            </div>
+          </section>
+          <section class="setting-card">
+            <h3>Service worker</h3>
+            <div class="metric">${status?.controlled ? "Active" : "Not controlling this page"}</div>
+            <p>${navigator.onLine ? "Online" : "Offline"} · ${status?.coreCache || "No cache detected"}</p>
+          </section>
+        </div>
+      `;
+    }
+
     function matches(ev, state) {
       if (ev.session.timeMarker !== state.day) return false;
       if (state.timetableView === "planned" && !state.favorites.has(ev.session.id)) return false;
@@ -1373,7 +1637,7 @@
         .map((s) => eventRecord(s, indexes))
         .filter((ev) => ev.entity && ev.venue);
 
-      const tabs = { timetable: "Timetable", map: "Map", explore: "Explore", info: "Info" };
+      const tabs = { timetable: "Timetable", map: "Map", explore: "Explore", info: "Info", settings: "Settings" };
       $("primaryNav").innerHTML = Object.entries(tabs).map(([key, label]) =>
         `<button data-tab="${key}" class="${state.tab === key ? "active" : ""}" aria-current="${state.tab === key ? "page" : "false"}">${label}</button>`
       ).join("");
@@ -1389,6 +1653,7 @@
       $("mapView").hidden = state.tab !== "map";
       $("exploreView").hidden = state.tab !== "explore";
       $("infoView").hidden = state.tab !== "info";
+      $("settingsView").hidden = state.tab !== "settings";
       $("status").hidden = !timetableMode;
       $("list").hidden = !timetableMode;
 
@@ -1413,6 +1678,12 @@
         else if (merchandise) openMerchDrawer(merchandise);
         else if (partner) openPartnerDrawer(partner);
         else closeDrawer();
+        return;
+      }
+      if (state.tab === "settings") {
+        closeDrawer();
+        renderSettings();
+        if (!state.offlineSettings.loaded && !state.offlineSettings.loading) refreshOfflineSettings();
         return;
       }
 
@@ -1722,6 +1993,10 @@
         const partner = e.target.closest("button[data-partner]");
         if (partner) navigateToDetail("partner", partner.dataset.partner);
       });
+      $("settingsView").addEventListener("click", (e) => {
+        const button = e.target.closest("button[data-offline-action]");
+        if (button) handleOfflineAction(button.dataset.offlineAction);
+      });
       $("list").addEventListener("click", (e) => {
         const venueTitle = e.target.closest("button[data-collapse-venue]");
         if (venueTitle) {
@@ -1816,6 +2091,7 @@
 
     function updateConnectionStatus() {
       $("offlineStatus").hidden = navigator.onLine;
+      if (state.tab === "settings" && state.offlineSettings.loaded) renderSettings();
     }
 
     window.addEventListener("online", updateConnectionStatus);
@@ -1823,6 +2099,10 @@
     updateConnectionStatus();
 
     if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        state.offlineSettings.loaded = false;
+        if (state.tab === "settings") refreshOfflineSettings("Offline system updated.");
+      });
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("./service-worker.js").catch((error) => {
           console.warn("Service worker registration failed", error);
