@@ -835,7 +835,7 @@
   <script type="module">
     import * as maplibregl from "./vendor/maplibre-gl/maplibre-gl.mjs";
 
-    const APP_VERSION = "0.2.2";
+    const APP_VERSION = "0.2.3";
     const DATA_URL = "data/merged.json";
     const IMAGE_DIR = "images-data";
     const PLAN_STORAGE_KEY = "shambala-2026:festival-plan";
@@ -2004,7 +2004,7 @@
       const timing = temporalState(ev.session, now);
       const startsSoon = timing === "upcoming" && Date.parse(ev.session.start) <= now + 2 * 60 * 60 * 1000;
       const timingLabel = timing === "live"
-        ? `On now · ends ${fmtTime(ev.session.end, tz)}`
+        ? "On now"
         : timing === "past"
           ? "Finished"
           : startsSoon
