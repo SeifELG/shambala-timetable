@@ -835,7 +835,7 @@
   <script type="module">
     import * as maplibregl from "./vendor/maplibre-gl/maplibre-gl.mjs";
 
-    const APP_VERSION = "0.2.1";
+    const APP_VERSION = "0.2.2";
     const DATA_URL = "data/merged.json";
     const IMAGE_DIR = "images-data";
     const PLAN_STORAGE_KEY = "shambala-2026:festival-plan";
@@ -990,9 +990,9 @@
 
     function fmtTime(iso, tz) {
       return new Intl.DateTimeFormat("en-GB", {
-        hour: "2-digit",
+        hour: "numeric",
         minute: "2-digit",
-        hour12: false,
+        hour12: true,
         timeZone: tz,
       }).format(new Date(iso));
     }
@@ -2159,7 +2159,9 @@
         groups.get(ev.venue.id).items.push(ev);
       }
 
-      $("status").textContent = `${shown.length} set${shown.length === 1 ? "" : "s"} · days start at ${app.dayStartHour ?? 5}:00 ${tz.replace("_", " ")}`;
+      const dayStartHour = app.dayStartHour ?? 5;
+      const dayStartLabel = `${dayStartHour % 12 || 12}:00 ${dayStartHour < 12 ? "am" : "pm"}`;
+      $("status").textContent = `${shown.length} set${shown.length === 1 ? "" : "s"} · days start at ${dayStartLabel} ${tz.replace("_", " ")}`;
       $("list").innerHTML = [...groups.values()].map((group) => `
         <section class="venue">
           <button class="venue-title" data-collapse-venue="${group.venue.id}"
@@ -2539,9 +2541,9 @@
           weekday: "short",
           day: "numeric",
           month: "short",
-          hour: "2-digit",
+          hour: "numeric",
           minute: "2-digit",
-          hour12: false,
+          hour12: true,
           timeZone: tz,
         }).format(new Date(TEST_TIME))}`;
       $("subtitle").textContent = `App v${APP_VERSION}${dataVersion ? ` · data ${dataVersion}` : ""}${testClock}${navigator.onLine ? "" : " · Offline"}`;
