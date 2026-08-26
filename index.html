@@ -835,12 +835,16 @@
   <script type="module">
     import * as maplibregl from "./vendor/maplibre-gl/maplibre-gl.mjs";
 
-    const APP_VERSION = "0.2.0";
+    const APP_VERSION = "0.2.1";
     const DATA_URL = "data/merged.json";
     const IMAGE_DIR = "images-data";
     const PLAN_STORAGE_KEY = "shambala-2026:festival-plan";
     const MAP_PREFS_STORAGE_KEY = "shambala-2026:map-preferences";
     const TIMETABLE_PREFS_STORAGE_KEY = "shambala-2026:timetable-preferences";
+    const TEST_TIME_RAW = new URLSearchParams(location.search).get("testTime");
+    const TEST_TIME = TEST_TIME_RAW && Number.isFinite(Date.parse(TEST_TIME_RAW))
+      ? Date.parse(TEST_TIME_RAW)
+      : null;
 
     const state = {
       data: null,
@@ -879,6 +883,10 @@
     let festivalMap = null;
     const mapMarkers = new Map();
     let offlineRefreshId = 0;
+
+    function appNow() {
+      return TEST_TIME ?? Date.now();
+    }
 
     function imgPath(name, fallback) {
       const file = name || fallback || "";
@@ -993,7 +1001,7 @@
       return `${fmtTime(start, tz)} – ${fmtTime(end, tz)}`;
     }
 
-    function temporalState(session, now = Date.now()) {
+    function temporalState(session, now = appNow()) {
       const start = Date.parse(session.start);
       const end = Date.parse(session.end);
       if (!Number.isFinite(start) || !Number.isFinite(end)) return "unknown";
@@ -1002,7 +1010,7 @@
       return "upcoming";
     }
 
-    function relativeStart(start, now = Date.now()) {
+    function relativeStart(start, now = appNow()) {
       const minutes = Math.max(0, Math.ceil((Date.parse(start) - now) / 60000));
       if (minutes < 1) return "Starting now";
       if (minutes < 60) return `Starts in ${minutes}m`;
@@ -1011,7 +1019,7 @@
       return `Starts in ${hours}h${remainder ? ` ${remainder}m` : ""}`;
     }
 
-    function currentFestivalDay(data, now = Date.now()) {
+    function currentFestivalDay(data, now = appNow()) {
       const markers = dayKeys(data).filter((marker) => Number.isFinite(Date.parse(marker)));
       if (!markers.length) return null;
       return markers.slice().reverse().find((marker) => Date.parse(marker) <= now) || markers[0];
@@ -1291,7 +1299,9 @@
     }
 
     async function shareCurrentDetail(button) {
-      const url = location.href;
+      const shareUrl = new URL(location.href);
+      shareUrl.searchParams.delete("testTime");
+      const url = shareUrl.href;
       const title = decodeURIComponent(button.dataset.shareTitle || "") || document.title;
       try {
         if (navigator.share) {
@@ -1549,7 +1559,7 @@
     function renderGlobalSearch(indexes, fallback) {
       const query = state.globalQuery.trim();
       const safeQuery = escapeHtml(query);
-      const now = Date.now();
+      const now = appNow();
       const sessionsByEntity = new Map();
       for (const session of state.data.entitySessions) {
         if (!sessionsByEntity.has(session.entityId)) sessionsByEntity.set(session.entityId, []);
@@ -1966,7 +1976,7 @@
       `;
     }
 
-    function matches(ev, state, now = Date.now()) {
+    function matches(ev, state, now = appNow()) {
       const timing = temporalState(ev.session, now);
       if (state.timetableView === "now") {
         const startsWithinWindow = Date.parse(ev.session.start) <= now + 2 * 60 * 60 * 1000;
@@ -1990,7 +2000,7 @@
       return hay.includes(q);
     }
 
-    function eventRow(ev, tz, fallback, { showVenue = false, now = Date.now() } = {}) {
+    function eventRow(ev, tz, fallback, { showVenue = false, now = appNow() } = {}) {
       const timing = temporalState(ev.session, now);
       const startsSoon = timing === "upcoming" && Date.parse(ev.session.start) <= now + 2 * 60 * 60 * 1000;
       const timingLabel = timing === "live"
@@ -2121,7 +2131,7 @@
       $("hideFinished").setAttribute("aria-pressed", String(state.hideFinished));
       $("hideFinished").textContent = state.hideFinished ? "Show finished" : "Hide finished";
 
-      const now = Date.now();
+      const now = appNow();
       const shown = events
         .filter((ev) => matches(ev, state, now))
         .sort((a, b) => a.session.start.localeCompare(b.session.start) || a.venue.name.localeCompare(b.venue.name));
@@ -2522,7 +2532,19 @@
 
     function updateSubtitle() {
       const dataVersion = state.data?.source?.deltaVersion;
-      $("subtitle").textContent = `App v${APP_VERSION}${dataVersion ? ` · data ${dataVersion}` : ""}${navigator.onLine ? "" : " · Offline"}`;
+      const tz = state.data?.config?.app?.tz || "Europe/London";
+      const testClock = TEST_TIME === null
+        ? TEST_TIME_RAW ? " · Invalid test time" : ""
+        : ` · Test clock ${new Intl.DateTimeFormat("en-GB", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+          timeZone: tz,
+        }).format(new Date(TEST_TIME))}`;
+      $("subtitle").textContent = `App v${APP_VERSION}${dataVersion ? ` · data ${dataVersion}` : ""}${testClock}${navigator.onLine ? "" : " · Offline"}`;
     }
 
     function updateConnectionStatus() {

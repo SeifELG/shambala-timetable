@@ -14,6 +14,12 @@ Then open <http://localhost:8000>.
 
 Opening `index.html` directly may not work because browsers restrict local JSON requests.
 
+To test time-aware features, add an ISO timestamp to the URL, for example:
+
+`http://localhost:8000/?testTime=2026-08-29T22:00:00Z#timetable`
+
+The header displays the active test clock. Remove `testTime` from the URL to return to the real clock.
+
 The guide is installable as a PWA. After the first successful visit, its interface, timetable, festival map, and previously viewed images remain available offline. YouTube previews and external links still require a connection.
 
 The Settings section reports the active cache and storage state, can repair the core offline package, request persistent storage, and download optional image collections.
