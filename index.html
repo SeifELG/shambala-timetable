@@ -794,6 +794,7 @@
 
     const $ = (id) => document.getElementById(id);
     const serviceWorkersAvailable = "serviceWorker" in navigator;
+    let installPromptEvent = null;
     let festivalMap = null;
     const mapMarkers = new Map();
     let offlineRefreshId = 0;
@@ -1405,6 +1406,10 @@
       return `${(bytes / 1024 ** index).toFixed(index > 1 ? 1 : 0)} ${units[index]}`;
     }
 
+    function isInstalledApp() {
+      return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+    }
+
     function workerCommand(type, payload = {}, onProgress) {
       if (!serviceWorkersAvailable) {
         return Promise.reject(new Error("Offline mode requires HTTPS and a browser with service-worker support."));
@@ -1537,7 +1542,22 @@
       settings.message = "";
       renderSettings();
       try {
-        if (action === "persist") {
+        if (action === "install") {
+          if (isInstalledApp()) {
+            settings.message = "The app is already installed.";
+          } else if (installPromptEvent) {
+            await installPromptEvent.prompt();
+            const choice = await installPromptEvent.userChoice;
+            installPromptEvent = null;
+            settings.message = choice.outcome === "accepted"
+              ? "Installation started."
+              : "Installation cancelled.";
+          } else if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+            settings.message = "In Safari, tap Share and then “Add to Home Screen”.";
+          } else {
+            settings.message = "Use your browser menu and choose “Install app” or “Add to Home screen”.";
+          }
+        } else if (action === "persist") {
           const granted = await navigator.storage?.persist?.();
           settings.message = granted
             ? "Persistent storage granted."
@@ -1585,6 +1605,7 @@
       const infoCount = mediaUrlsFor("info").length;
       const allCount = mediaUrlsFor("all").length;
       const offlineAvailable = serviceWorkersAvailable;
+      const installed = isInstalledApp();
       $("settingsView").innerHTML = `
         <div class="section-head">
           <div><h2>Settings</h2><p>Inspect, repair and expand what is available offline.</p></div>
@@ -1592,6 +1613,14 @@
         ${progress ? `<div class="progress-track" aria-label="${progressPercent}% complete"><span style="--progress:${progressPercent}%"></span></div>` : ""}
         <p class="settings-message">${settings.message || ""}</p>
         <div class="settings-grid">
+          <section class="setting-card">
+            <h3>Install app</h3>
+            <div class="metric">${installed ? "Installed" : "Use as an app"}</div>
+            <p>Install Shambala on your home screen for a standalone window and easier offline access.</p>
+            <div class="setting-actions">
+              <button class="action-btn" data-offline-action="install" ${settings.loading || installed ? "disabled" : ""}>${installed ? "Already installed" : "Install app"}</button>
+            </div>
+          </section>
           <section class="setting-card">
             <h3>Offline core</h3>
             <div class="metric">${!offlineAvailable ? "Unavailable" : status ? `${status.coreCached}/${status.coreExpected} files` : "Checking…"}</div>
@@ -2115,6 +2144,16 @@
 
     window.addEventListener("online", updateConnectionStatus);
     window.addEventListener("offline", updateConnectionStatus);
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      installPromptEvent = event;
+      if (state.tab === "settings") renderSettings();
+    });
+    window.addEventListener("appinstalled", () => {
+      installPromptEvent = null;
+      state.offlineSettings.message = "Shambala was installed successfully.";
+      if (state.tab === "settings") renderSettings();
+    });
     updateConnectionStatus();
 
     if ("serviceWorker" in navigator) {
