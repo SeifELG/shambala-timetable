@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v7";
+const CACHE_VERSION = "v8";
 const CORE_CACHE = `shambala-core-${CACHE_VERSION}`;
 const MEDIA_CACHE = "shambala-media";
 const CACHE_PREFIX = "shambala-";
@@ -159,17 +159,6 @@ self.addEventListener("message", (event) => {
   }
 });
 
-async function networkFirst(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  try {
-    const response = await fetch(request);
-    if (response.ok) await cache.put(request, response.clone());
-    return response;
-  } catch {
-    return cache.match(request);
-  }
-}
-
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
@@ -181,17 +170,20 @@ async function cacheFirst(request) {
   return response;
 }
 
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(MEDIA_CACHE);
-  const cached = await cache.match(request);
-  const refresh = fetch(request)
-    .then(async (response) => {
-      if (response.ok) await cache.put(request, response.clone());
-      return response;
-    })
-    .catch(() => null);
+async function navigationCacheFirst(request) {
+  const cached = await caches.match(request, { ignoreSearch: true })
+    || await caches.match(scopedUrl("./index.html"));
+  return cached || fetch(request);
+}
+
+async function imageCacheFirst(request) {
+  const cached = await caches.match(request);
   if (cached) return cached;
-  return await refresh || Response.error();
+
+  const cache = await caches.open(MEDIA_CACHE);
+  const response = await fetch(request);
+  if (response.ok) await cache.put(request, response.clone());
+  return response;
 }
 
 self.addEventListener("fetch", (event) => {
@@ -202,20 +194,17 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(
-      networkFirst(request, CORE_CACHE)
-        .then((response) => response || caches.match(new URL("./index.html", self.registration.scope).href))
-    );
+    event.respondWith(navigationCacheFirst(request));
     return;
   }
 
   if (url.pathname.endsWith("/data/merged.json")) {
-    event.respondWith(networkFirst(request, CORE_CACHE));
+    event.respondWith(cacheFirst(request));
     return;
   }
 
   if (url.pathname.includes("/images-data/")) {
-    event.respondWith(staleWhileRevalidate(request));
+    event.respondWith(imageCacheFirst(request));
     return;
   }
 

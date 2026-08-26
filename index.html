@@ -2087,7 +2087,7 @@
               ${fmtRange(ev.session.start, ev.session.end, tz)}
               ${timingLabel ? `<span class="time-state">${timingLabel}</span>` : ""}
             </div>
-            <img src="${imgPath(ev.entity.image, fallback)}" alt="">
+            <img src="${imgPath(ev.entity.image, fallback)}" alt="" loading="lazy" decoding="async">
             <div>
               <div class="name">${ev.entity.name}</div>
               <div class="meta">${showVenue ? `<span class="venue-name">${ev.venue.name}</span>${categories ? " · " : ""}` : ""}${categories}</div>
@@ -2645,10 +2645,8 @@
         state.offlineSettings.loaded = false;
         if (state.tab === "settings") refreshOfflineSettings("Offline system updated.");
       });
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./service-worker.js").catch((error) => {
-          console.warn("Service worker registration failed", error);
-        });
+      navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+        console.warn("Service worker registration failed", error);
       });
     }
 
