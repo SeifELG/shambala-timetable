@@ -31,21 +31,6 @@
         var(--paper);
       color: var(--ink);
     }
-    .offline-status {
-      position: fixed;
-      right: 14px;
-      bottom: 14px;
-      z-index: 10;
-      margin: 0;
-      padding: 8px 12px;
-      border: 1px solid #c58a18;
-      border-radius: 999px;
-      background: #fff1c9;
-      color: #5c410f;
-      box-shadow: var(--shadow-sm);
-      font-size: 0.86rem;
-    }
-
     .wrap { max-width: 1160px; margin: 0 auto; padding: 24px 20px 80px; }
 
     header.hero {
@@ -715,7 +700,6 @@
   </style>
 </head>
 <body>
-  <p class="offline-status" id="offlineStatus" role="status" hidden>Offline · showing downloaded content</p>
   <div class="wrap">
     <header class="hero">
       <img class="logo" id="logo" alt="Shambala" hidden>
@@ -758,6 +742,7 @@
   <script type="module">
     import * as maplibregl from "./vendor/maplibre-gl/maplibre-gl.mjs";
 
+    const APP_VERSION = "0.1.0";
     const DATA_URL = "data/merged.json";
     const IMAGE_DIR = "images-data";
     const PLAN_STORAGE_KEY = "shambala-2026:festival-plan";
@@ -1624,7 +1609,7 @@
           <section class="setting-card">
             <h3>Offline core</h3>
             <div class="metric">${!offlineAvailable ? "Unavailable" : status ? `${status.coreCached}/${status.coreExpected} files` : "Checking…"}</div>
-            <p>App interface, timetable data, festival map and map renderer. Cache ${status?.cacheVersion || "—"} · data ${state.data.source?.deltaVersion || "bundled"}.</p>
+            <p>App v${APP_VERSION} · cache ${status?.cacheVersion || "—"} · data ${state.data.source?.deltaVersion || "bundled"}. Includes the interface, timetable, map and map renderer.</p>
             <div class="setting-actions">
               <button class="action-btn" data-offline-action="repair" ${settings.loading || !navigator.onLine || !offlineAvailable ? "disabled" : ""}>Repair core files</button>
             </div>
@@ -2110,7 +2095,7 @@
         saveFavorites();
         const app = data.config?.app || {};
         $("title").textContent = `${app.name || "Shambala"} festival guide`;
-        $("subtitle").textContent = `Local viewer · delta ${data.source?.deltaVersion || "bundled"}`;
+        updateSubtitle();
         const logo = imgPath(app.images?.logo);
         if (logo) {
           $("logo").src = logo;
@@ -2137,8 +2122,13 @@
       }
     }
 
+    function updateSubtitle() {
+      const dataVersion = state.data?.source?.deltaVersion;
+      $("subtitle").textContent = `App v${APP_VERSION}${dataVersion ? ` · data ${dataVersion}` : ""}${navigator.onLine ? "" : " · Offline"}`;
+    }
+
     function updateConnectionStatus() {
-      $("offlineStatus").hidden = navigator.onLine;
+      updateSubtitle();
       if (state.tab === "settings" && state.offlineSettings.loaded) renderSettings();
     }
 
