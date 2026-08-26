@@ -1,6 +1,6 @@
 # Shambala 2026 Festival Guide
 
-An unofficial, static festival guide for Shambala 2026. It includes a time-aware timetable and Now & Next view, personal planning, global offline search, the festival map, places, news, practical information, merchandise, and partners.
+An unofficial, static festival guide for Shambala 2026. It includes a time-aware timetable and Now & Next view, personal planning, global offline search, a festival map with optional current location, places, news, practical information, merchandise, and partners.
 
 ## Run locally
 

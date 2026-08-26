@@ -835,7 +835,7 @@
   <script type="module">
     import * as maplibregl from "./vendor/maplibre-gl/maplibre-gl.mjs";
 
-    const APP_VERSION = "0.2.3";
+    const APP_VERSION = "0.3.0";
     const DATA_URL = "data/merged.json";
     const IMAGE_DIR = "images-data";
     const PLAN_STORAGE_KEY = "shambala-2026:festival-plan";
@@ -1202,6 +1202,16 @@
       });
 
       festivalMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+      if ("geolocation" in navigator && window.isSecureContext) {
+        festivalMap.addControl(new maplibregl.GeolocateControl({
+          positionOptions: { enableHighAccuracy: true },
+          trackUserLocation: true,
+          showUserLocation: true,
+          showAccuracyCircle: true,
+          showUserHeading: false,
+          fitBoundsOptions: { maxZoom: 17 },
+        }), "bottom-right");
+      }
       addPoiMarkers(festivalMap, pois, categories);
       $("mapCount").dataset.locationCount = pois.length;
       festivalMap.on("zoom", updateMarkerScale);
