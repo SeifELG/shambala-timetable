@@ -1082,6 +1082,18 @@
       return { session, entity, venue, cats, subs };
     }
 
+    function poiCoordinates(poi) {
+      const coordinates = Array.isArray(poi?.gps?.coordinates)
+        ? poi.gps.coordinates
+        : [poi?.gps?.longitude, poi?.gps?.latitude];
+      const [longitude, latitude] = coordinates;
+      return coordinates.length === 2
+        && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
+        && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90
+        ? [longitude, latitude]
+        : null;
+    }
+
     function markerIcon(type) {
       const icons = {
         stage: `<path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>`,
@@ -1166,7 +1178,7 @@
         const popup = new maplibregl.Popup({ offset: type === "stage" ? 22 : 16 })
           .setDOMContent(content);
         const mapMarker = new maplibregl.Marker({ element: marker })
-          .setLngLat(poi.gps.coordinates)
+          .setLngLat(poiCoordinates(poi))
           .setPopup(popup)
           .addTo(map);
         mapMarkers.set(poi.id, mapMarker);
@@ -1195,9 +1207,7 @@
       if (!bounds || !mapImage) return;
 
       const categories = Object.fromEntries(data.categories.map((category) => [category.id, category]));
-      const pois = data.poi.filter((poi) =>
-        Array.isArray(poi.gps?.coordinates) && poi.gps.coordinates.length === 2
-      );
+      const pois = data.poi.filter((poi) => poiCoordinates(poi));
       const corners = [
         [bounds.northWest.longitude, bounds.northWest.latitude],
         [bounds.northEast.longitude, bounds.northEast.latitude],
@@ -1389,13 +1399,14 @@
 
     function showPoiOnMap(id) {
       const poi = state.data.poi.find((item) => item.id === id);
-      if (!Array.isArray(poi?.gps?.coordinates)) return;
+      const coordinates = poiCoordinates(poi);
+      if (!coordinates) return;
       closeDrawer();
       history.pushState({ tab: "map" }, "", "#map");
       applyRoute();
       requestAnimationFrame(() => {
         initMap(state.data);
-        festivalMap.flyTo({ center: poi.gps.coordinates, zoom: 16.5 });
+        festivalMap.flyTo({ center: coordinates, zoom: 16.5 });
         const marker = mapMarkers.get(id);
         const popup = marker?.getPopup();
         if (popup && !popup.isOpen()) marker.togglePopup();
@@ -1485,7 +1496,7 @@
           ${items.map((poi) => {
             const category = indexes.categories[poi.category];
             const image = typeof poi.image === "string" && poi.image ? imgPath(poi.image, fallback) : "";
-            const hasMap = Array.isArray(poi.gps?.coordinates);
+            const hasMap = Boolean(poiCoordinates(poi));
             return `<article class="content-card">
               <button class="card-main" data-poi="${poi.id}">
                 ${image ? `<img src="${image}" alt="">` : ""}
@@ -2277,7 +2288,7 @@
           ${warnings.map((w) => `<span class="warn">${w}</span>`).join("")}
           <div class="link-list">
             ${shareButton(ev.entity.name)}
-            ${Array.isArray(ev.venue.gps?.coordinates) ? `<button class="action-btn" data-show-map="${ev.venue.id}">Show venue on map</button>` : ""}
+            ${poiCoordinates(ev.venue) ? `<button class="action-btn" data-show-map="${ev.venue.id}">Show venue on map</button>` : ""}
           </div>
           <p class="desc">${ev.session.description || ev.entity.description || ""}</p>
           ${videoId ? `<section class="drawer-section"><h3>Watch</h3><div class="video">
@@ -2324,7 +2335,7 @@
           <h2>${poi.name}</h2>
           <div class="link-list">
             ${shareButton(poi.name)}
-            ${Array.isArray(poi.gps?.coordinates) ? `<button class="action-btn" data-show-map="${poi.id}">Show on map</button>` : ""}
+            ${poiCoordinates(poi) ? `<button class="action-btn" data-show-map="${poi.id}">Show on map</button>` : ""}
           </div>
           ${poi.description ? `<p class="desc">${poi.description}</p>` : ""}
           ${poi.w3wAddress ? `<p><strong>What3Words</strong><br>///${poi.w3wAddress}</p>` : ""}
