@@ -465,6 +465,32 @@
       pointer-events: none;
       backdrop-filter: blur(4px);
     }
+    .test-location-marker {
+      position: relative;
+      width: 18px;
+      height: 18px;
+      border: 3px solid #fff;
+      border-radius: 50%;
+      background: #2878d0;
+      box-shadow:
+        0 1px 5px rgba(19, 45, 78, 0.48),
+        0 0 0 12px rgba(40, 120, 208, 0.2);
+      pointer-events: none;
+    }
+    .test-location-marker span {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 12px);
+      transform: translateX(-50%);
+      padding: 3px 6px;
+      border: 1px solid rgba(40, 120, 208, 0.35);
+      border-radius: 6px;
+      background: rgba(255, 250, 241, 0.94);
+      color: #1e568f;
+      box-shadow: var(--shadow-sm);
+      font: 700 0.72rem/1.2 Georgia, serif;
+      white-space: nowrap;
+    }
     .map-panel.show-stage-labels .map-marker.stage .marker-label,
     .map-panel.show-activity-labels .map-marker.activity-space .marker-label {
       display: block;
@@ -845,6 +871,14 @@
     const TEST_TIME = TEST_TIME_RAW && Number.isFinite(Date.parse(TEST_TIME_RAW))
       ? Date.parse(TEST_TIME_RAW)
       : null;
+    const TEST_LOCATION_RAW = new URLSearchParams(location.search).get("testLocation");
+    const TEST_LOCATION = (() => {
+      const [longitude, latitude] = String(TEST_LOCATION_RAW || "").split(",").map(Number);
+      return Number.isFinite(longitude) && Number.isFinite(latitude)
+        && longitude >= -180 && longitude <= 180 && latitude >= -90 && latitude <= 90
+        ? [longitude, latitude]
+        : null;
+    })();
 
     const state = {
       data: null,
@@ -1212,6 +1246,19 @@
           fitBoundsOptions: { maxZoom: 17 },
         }), "bottom-right");
       }
+      if (TEST_LOCATION) {
+        const testMarker = document.createElement("div");
+        testMarker.className = "test-location-marker";
+        testMarker.setAttribute("role", "img");
+        testMarker.setAttribute("aria-label", "Simulated test location");
+        testMarker.innerHTML = "<span>Test location</span>";
+        new maplibregl.Marker({ element: testMarker })
+          .setLngLat(TEST_LOCATION)
+          .addTo(festivalMap);
+        festivalMap.once("load", () => {
+          festivalMap.flyTo({ center: TEST_LOCATION, zoom: 16.5 });
+        });
+      }
       addPoiMarkers(festivalMap, pois, categories);
       $("mapCount").dataset.locationCount = pois.length;
       festivalMap.on("zoom", updateMarkerScale);
@@ -1311,6 +1358,7 @@
     async function shareCurrentDetail(button) {
       const shareUrl = new URL(location.href);
       shareUrl.searchParams.delete("testTime");
+      shareUrl.searchParams.delete("testLocation");
       const url = shareUrl.href;
       const title = decodeURIComponent(button.dataset.shareTitle || "") || document.title;
       try {
@@ -2556,7 +2604,10 @@
           hour12: true,
           timeZone: tz,
         }).format(new Date(TEST_TIME))}`;
-      $("subtitle").textContent = `App v${APP_VERSION}${dataVersion ? ` · data ${dataVersion}` : ""}${testClock}${navigator.onLine ? "" : " · Offline"}`;
+      const testLocation = TEST_LOCATION
+        ? " · Test location"
+        : TEST_LOCATION_RAW ? " · Invalid test location" : "";
+      $("subtitle").textContent = `App v${APP_VERSION}${dataVersion ? ` · data ${dataVersion}` : ""}${testClock}${testLocation}${navigator.onLine ? "" : " · Offline"}`;
     }
 
     function updateConnectionStatus() {

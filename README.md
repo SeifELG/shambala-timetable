@@ -20,6 +20,12 @@ To test time-aware features, add an ISO timestamp to the URL, for example:
 
 The header displays the active test clock. Remove `testTime` from the URL to return to the real clock.
 
+To simulate a map location without using GPS, provide longitude and latitude:
+
+`http://localhost:8000/?testLocation=-0.924,52.414#map`
+
+Remove `testLocation` to return to normal GPS behaviour.
+
 The guide is installable as a PWA. After the first successful visit, its interface, timetable, festival map, and previously viewed images remain available offline. YouTube previews and external links still require a connection.
 
 The Settings section reports the active cache and storage state, can repair the core offline package, request persistent storage, and download optional image collections.
