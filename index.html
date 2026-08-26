@@ -352,23 +352,6 @@
       box-shadow: var(--shadow-sm);
     }
     #map { width: 100%; height: 100%; }
-    .map-count {
-      position: absolute;
-      top: 12px;
-      left: 50%;
-      z-index: 2;
-      transform: translateX(-50%);
-      margin: 0;
-      padding: 7px 12px;
-      border: 1px solid rgba(49, 74, 52, 0.18);
-      border-radius: 999px;
-      background: rgba(255, 250, 241, 0.9);
-      color: var(--olive);
-      box-shadow: var(--shadow-sm);
-      font-size: 0.86rem;
-      white-space: nowrap;
-      backdrop-filter: blur(6px);
-    }
     .map-label-controls {
       position: absolute;
       top: 12px;
@@ -805,7 +788,6 @@
       .tools { align-items: stretch; }
       .tools input, .tools select { width: 100%; }
       .map-panel { min-height: 520px; height: 72vh; border-radius: 16px; }
-      .map-label-controls { top: 54px; }
       .row-main { grid-template-columns: 78px 52px minmax(0, 1fr); gap: 8px; padding: 10px 6px 10px 10px; }
       .row img { width: 52px; height: 52px; }
       .star { width: 40px; height: 40px; margin-right: 6px; }
@@ -840,7 +822,6 @@
     </div>
 
     <div class="map-panel" id="mapView" hidden>
-      <p class="map-count" id="mapCount"></p>
       <div class="map-label-controls" id="mapLabelControls" aria-label="Map labels">
         <button type="button" data-map-label="stages" aria-pressed="false">Stage names</button>
         <button type="button" data-map-label="activities" aria-pressed="false">Activity names</button>
@@ -861,7 +842,7 @@
   <script type="module">
     import * as maplibregl from "./vendor/maplibre-gl/maplibre-gl.mjs";
 
-    const APP_VERSION = "0.3.0";
+    const APP_VERSION = "0.3.1";
     const DATA_URL = "data/merged.json";
     const IMAGE_DIR = "images-data";
     const PLAN_STORAGE_KEY = "shambala-2026:festival-plan";
@@ -1191,8 +1172,6 @@
       const progress = Math.max(0, Math.min(1, (zoom - 12) / 4.5));
       const scale = 0.3 + (0.8 - 0.3) * progress ** 2;
       $("mapView").style.setProperty("--marker-scale", scale.toFixed(3));
-      const locationCount = $("mapCount").dataset.locationCount;
-      $("mapCount").textContent = `${locationCount} mapped locations · zoom ${zoom.toFixed(1)}`;
     }
 
     function initMap(data) {
@@ -1270,7 +1249,6 @@
         });
       }
       addPoiMarkers(festivalMap, pois, categories);
-      $("mapCount").dataset.locationCount = pois.length;
       festivalMap.on("zoom", updateMarkerScale);
       updateMarkerScale();
     }

@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v8";
+const CACHE_VERSION = "v9";
 const CORE_CACHE = `shambala-core-${CACHE_VERSION}`;
 const MEDIA_CACHE = "shambala-media";
 const CACHE_PREFIX = "shambala-";
